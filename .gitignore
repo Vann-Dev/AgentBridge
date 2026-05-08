@@ -29,7 +29,13 @@ yarn-error.log*
 pnpm-debug.log*
 
 # env files
+.env
 .env*.local
+
+# prisma
+/prisma/dev.db
+/prisma/dev.db-journal
+/generated/prisma
 
 # typescript
 *.tsbuildinfo
