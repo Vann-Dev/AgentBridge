@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState } from "react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { MoreHorizontalIcon } from "lucide-react"
 
 import {
@@ -23,31 +23,40 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-
-import { deleteAgent, regenerateAgentToken } from "./actions"
+import { apiJson } from "@/lib/api/client"
 
 type AgentRowActionsProps = {
   agent: {
     id: string
     name: string
   }
+  companyId: string | null
 }
 
-export function AgentRowActions({ agent }: AgentRowActionsProps) {
-  const [deleteResult, deleteAction, isDeleting] = useActionState(deleteAgent, null)
-  const [tokenResult, tokenAction, isRegenerating] = useActionState(
-    regenerateAgentToken,
-    null
-  )
+export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
+  const queryClient = useQueryClient()
+  const deleteMutation = useMutation({
+    mutationFn: () =>
+      apiJson(`/api/internal/agents/${agent.id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agents", companyId] }),
+  })
+  const tokenMutation = useMutation({
+    mutationFn: () =>
+      apiJson<{ token: string }>(`/api/internal/agents/${agent.id}/token`, {
+        method: "POST",
+      }),
+  })
 
   return (
     <div className="flex justify-end gap-2">
-      {tokenResult?.token ? (
+      {tokenMutation.data?.token ? (
         <div className="max-w-80 rounded-2xl border border-border bg-muted p-3 text-left">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
             New token
           </p>
-          <p className="mt-2 break-all font-mono text-xs">{tokenResult.token}</p>
+          <p className="mt-2 break-all font-mono text-xs">{tokenMutation.data.token}</p>
         </div>
       ) : null}
       <DropdownMenu>
@@ -61,10 +70,9 @@ export function AgentRowActions({ agent }: AgentRowActionsProps) {
           <DropdownMenuLabel>{agent.name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <form action={tokenAction}>
-              <input name="agentId" type="hidden" value={agent.id} />
-              <button className="w-full text-left" disabled={isRegenerating} type="submit">
-                {isRegenerating ? "Regenerating..." : "Regenerate token"}
+            <form action={() => tokenMutation.mutate()}>
+              <button className="w-full text-left" disabled={tokenMutation.isPending} type="submit">
+                {tokenMutation.isPending ? "Regenerating..." : "Regenerate token"}
               </button>
             </form>
           </DropdownMenuItem>
@@ -81,15 +89,18 @@ export function AgentRowActions({ agent }: AgentRowActionsProps) {
                   This removes the agent and invalidates its bearer token. This cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              {deleteResult?.error ? (
-                <p className="text-sm text-destructive">{deleteResult.error}</p>
+              {deleteMutation.error ? (
+                <p className="text-sm text-destructive">{deleteMutation.error.message}</p>
               ) : null}
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <form action={deleteAction}>
-                  <input name="agentId" type="hidden" value={agent.id} />
-                  <AlertDialogAction disabled={isDeleting} variant="destructive" type="submit">
-                    {isDeleting ? "Deleting..." : "Delete"}
+                <form action={() => deleteMutation.mutate()}>
+                  <AlertDialogAction
+                    disabled={deleteMutation.isPending}
+                    variant="destructive"
+                    type="submit"
+                  >
+                    {deleteMutation.isPending ? "Deleting..." : "Delete"}
                   </AlertDialogAction>
                 </form>
               </AlertDialogFooter>
@@ -97,7 +108,9 @@ export function AgentRowActions({ agent }: AgentRowActionsProps) {
           </AlertDialog>
         </DropdownMenuContent>
       </DropdownMenu>
-      {tokenResult?.error ? <p className="text-sm text-destructive">{tokenResult.error}</p> : null}
+      {tokenMutation.error ? (
+        <p className="text-sm text-destructive">{tokenMutation.error.message}</p>
+      ) : null}
     </div>
   )
 }

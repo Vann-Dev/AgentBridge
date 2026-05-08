@@ -1,6 +1,7 @@
 "use client"
 
-import { useOptimistic, useState, useTransition } from "react"
+import { useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Status } from "@/generated/prisma/enums"
 import { Badge } from "@/components/ui/badge"
@@ -11,8 +12,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { apiJson } from "@/lib/api/client"
 
-import { updateTaskStatus } from "./actions"
 
 type TaskCard = {
   id: string
@@ -27,6 +28,7 @@ type TaskCard = {
 }
 
 type TaskKanbanProps = {
+  projectId: string
   tasks: TaskCard[]
 }
 
@@ -37,44 +39,72 @@ const columns = [
   { key: Status.done, label: "Done" },
 ] as const
 
-export function TaskKanban({ tasks }: TaskKanbanProps) {
+export function TaskKanban({ projectId, tasks }: TaskKanbanProps) {
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [, startTransition] = useTransition()
-  const [optimisticTasks, moveOptimisticTask] = useOptimistic(
-    tasks,
-    (currentTasks, move: { taskId: string; status: Status }) =>
-      currentTasks.map((task) =>
-        task.id === move.taskId ? { ...task, status: move.status } : task
+  const queryClient = useQueryClient()
+  const projectQuery = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () =>
+      apiJson<{ project: { tasks: TaskCard[] } }>(`/api/internal/projects/${projectId}`),
+    initialData: { project: { tasks } },
+  })
+  const mutation = useMutation({
+    mutationFn: ({ taskId, status }: { taskId: string; status: Status }) =>
+      apiJson(`/api/internal/tasks/${taskId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onMutate: async ({ taskId, status }) => {
+      await queryClient.cancelQueries({ queryKey: ["project", projectId] })
+      const previous = queryClient.getQueryData<{ project: { tasks: TaskCard[] } }>([
+        "project",
+        projectId,
+      ])
+
+      queryClient.setQueryData<{ project: { tasks: TaskCard[] } }>(
+        ["project", projectId],
+        (current) =>
+          current
+            ? {
+                project: {
+                  ...current.project,
+                  tasks: current.project.tasks.map((task) =>
+                    task.id === taskId ? { ...task, status } : task
+                  ),
+                },
+              }
+            : current
       )
-  )
+
+      return { previous }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["project", projectId], context.previous)
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
+  })
+  const currentTasks = projectQuery.data.project.tasks
 
   function moveTask(taskId: string, status: Status) {
-    const task = optimisticTasks.find((item) => item.id === taskId)
+    const task = currentTasks.find((item) => item.id === taskId)
 
     if (!task || task.status === status) {
       setDraggingTaskId(null)
       return
     }
 
-    setError(null)
-    startTransition(async () => {
-      moveOptimisticTask({ taskId, status })
-      const result = await updateTaskStatus(taskId, status)
-
-      if (result.error) {
-        setError(result.error)
-      }
-    })
+    mutation.mutate({ taskId, status })
     setDraggingTaskId(null)
   }
 
   return (
     <div className="space-y-3">
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {mutation.error ? <p className="text-sm text-destructive">{mutation.error.message}</p> : null}
       <div className="grid gap-4 xl:grid-cols-4">
         {columns.map((column) => {
-          const columnTasks = optimisticTasks.filter((task) => task.status === column.key)
+          const columnTasks = currentTasks.filter((task) => task.status === column.key)
 
           return (
             <Card

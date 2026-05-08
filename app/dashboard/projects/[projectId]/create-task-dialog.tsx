@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState } from "react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -21,8 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { apiJson } from "@/lib/api/client"
 
-import { createTask } from "./actions"
 
 type AgentOption = {
   id: string
@@ -36,7 +36,33 @@ type CreateTaskDialogProps = {
 }
 
 export function CreateTaskDialog({ projectId, agents }: CreateTaskDialogProps) {
-  const [result, action, isPending] = useActionState(createTask, null)
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: (payload: {
+      projectId: string
+      assignedAgentId: string
+      name: string
+      job: string
+      status: string
+      blockingReason: string
+    }) =>
+      apiJson("/api/internal/tasks", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
+  })
+
+  function action(formData: FormData) {
+    mutation.mutate({
+      projectId,
+      assignedAgentId: String(formData.get("assignedAgentId") ?? ""),
+      name: String(formData.get("name") ?? ""),
+      job: String(formData.get("job") ?? ""),
+      status: String(formData.get("status") ?? "todo"),
+      blockingReason: String(formData.get("blockingReason") ?? ""),
+    })
+  }
 
   return (
     <Dialog>
@@ -100,12 +126,12 @@ export function CreateTaskDialog({ projectId, agents }: CreateTaskDialogProps) {
               rows={3}
             />
           </div>
-          {result?.error ? <p className="text-sm text-destructive">{result.error}</p> : null}
+          {mutation.error ? <p className="text-sm text-destructive">{mutation.error.message}</p> : null}
           {!agents.length ? (
             <p className="text-sm text-muted-foreground">Create an agent before adding tasks.</p>
           ) : null}
-          <Button disabled={isPending || !agents.length} type="submit">
-            {isPending ? "Creating..." : "Create task"}
+          <Button disabled={mutation.isPending || !agents.length} type="submit">
+            {mutation.isPending ? "Creating..." : "Create task"}
           </Button>
         </form>
       </DialogContent>

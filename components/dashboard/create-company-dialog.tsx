@@ -1,8 +1,8 @@
 "use client"
 
-import { useActionState } from "react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 
-import { createCompany } from "@/app/dashboard/companies/actions"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -15,13 +15,34 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { apiJson } from "@/lib/api/client"
 
 type CreateCompanyDialogProps = {
   defaultOpen?: boolean
 }
 
 export function CreateCompanyDialog({ defaultOpen = false }: CreateCompanyDialogProps) {
-  const [error, action, isPending] = useActionState(createCompany, null)
+  const router = useRouter()
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: (payload: { name: string; description: string }) =>
+      apiJson<{ company: { id: string } }>("/api/internal/companies", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["companies"] })
+      router.push(`/dashboard?company=${data.company.id}`)
+      router.refresh()
+    },
+  })
+
+  function action(formData: FormData) {
+    mutation.mutate({
+      name: String(formData.get("name") ?? ""),
+      description: String(formData.get("description") ?? ""),
+    })
+  }
 
   return (
     <Dialog defaultOpen={defaultOpen}>
@@ -46,9 +67,9 @@ export function CreateCompanyDialog({ defaultOpen = false }: CreateCompanyDialog
             <Label htmlFor="company-description">Description</Label>
             <Textarea id="company-description" name="description" rows={4} />
           </div>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <Button disabled={isPending} type="submit">
-            {isPending ? "Creating..." : "Create company"}
+          {mutation.error ? <p className="text-sm text-destructive">{mutation.error.message}</p> : null}
+          <Button disabled={mutation.isPending} type="submit">
+            {mutation.isPending ? "Creating..." : "Create company"}
           </Button>
         </form>
       </DialogContent>

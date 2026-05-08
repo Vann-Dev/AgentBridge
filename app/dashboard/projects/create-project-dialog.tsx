@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState } from "react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -14,15 +14,33 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { apiJson } from "@/lib/api/client"
 
-import { createProject } from "./actions"
 
 type CreateProjectDialogProps = {
   companyId: string | null
 }
 
 export function CreateProjectDialog({ companyId }: CreateProjectDialogProps) {
-  const [result, action, isPending] = useActionState(createProject, null)
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: (payload: { companyId: string; name: string; description: string }) =>
+      apiJson("/api/internal/projects", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["projects", companyId] }),
+  })
+
+  function action(formData: FormData) {
+    if (!companyId) return
+
+    mutation.mutate({
+      companyId,
+      name: String(formData.get("name") ?? ""),
+      description: String(formData.get("description") ?? ""),
+    })
+  }
 
   return (
     <Dialog>
@@ -48,9 +66,9 @@ export function CreateProjectDialog({ companyId }: CreateProjectDialogProps) {
             <Label htmlFor="project-description">Description</Label>
             <Textarea id="project-description" name="description" rows={4} />
           </div>
-          {result?.error ? <p className="text-sm text-destructive">{result.error}</p> : null}
-          <Button disabled={isPending || !companyId} type="submit">
-            {isPending ? "Creating..." : "Create project"}
+          {mutation.error ? <p className="text-sm text-destructive">{mutation.error.message}</p> : null}
+          <Button disabled={mutation.isPending || !companyId} type="submit">
+            {mutation.isPending ? "Creating..." : "Create project"}
           </Button>
         </form>
       </DialogContent>

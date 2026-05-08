@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -22,9 +22,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { apiJson } from "@/lib/api/client"
 
 import { AgentRowActions } from "./agent-row-actions"
-import { createAgent } from "./actions"
 
 type AgentRow = {
   id: string
@@ -39,7 +39,39 @@ type AgentsTableProps = {
 }
 
 export function AgentsTable({ agents, companyId }: AgentsTableProps) {
-  const [result, action, isPending] = useActionState(createAgent, null)
+  const queryClient = useQueryClient()
+  const agentsQuery = useQuery({
+    queryKey: ["agents", companyId],
+    queryFn: () =>
+      apiJson<{ agents: AgentRow[] }>(`/api/internal/agents?companyId=${companyId}`),
+    enabled: Boolean(companyId),
+    initialData: { agents },
+  })
+  const createMutation = useMutation({
+    mutationFn: (payload: {
+      companyId: string
+      name: string
+      description: string
+      position: string
+    }) =>
+      apiJson<{ token: string }>("/api/internal/agents", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agents", companyId] }),
+  })
+
+  function action(formData: FormData) {
+    if (!companyId) return
+
+    createMutation.mutate({
+      companyId,
+      name: String(formData.get("name") ?? ""),
+      description: String(formData.get("description") ?? ""),
+      position: String(formData.get("position") ?? ""),
+    })
+  }
+  const currentAgents = agentsQuery.data.agents
 
   return (
     <div className="space-y-5">
@@ -77,17 +109,19 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
                 <Label htmlFor="agent-description">Description</Label>
                 <Textarea id="agent-description" name="description" rows={4} />
               </div>
-              {result?.error ? <p className="text-sm text-destructive">{result.error}</p> : null}
-              {result?.token ? (
+              {createMutation.error ? (
+                <p className="text-sm text-destructive">{createMutation.error.message}</p>
+              ) : null}
+              {createMutation.data?.token ? (
                 <div className="rounded-2xl border border-border bg-muted p-3">
                   <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
                     Bearer token
                   </p>
-                  <p className="mt-2 break-all font-mono text-xs">{result.token}</p>
+                  <p className="mt-2 break-all font-mono text-xs">{createMutation.data.token}</p>
                 </div>
               ) : null}
-              <Button disabled={isPending || !companyId} type="submit">
-                {isPending ? "Creating..." : "Create agent"}
+              <Button disabled={createMutation.isPending || !companyId} type="submit">
+                {createMutation.isPending ? "Creating..." : "Create agent"}
               </Button>
             </form>
           </DialogContent>
@@ -105,14 +139,14 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {agents.length ? (
-              agents.map((agent) => (
+            {currentAgents.length ? (
+              currentAgents.map((agent) => (
                 <TableRow key={agent.id}>
                   <TableCell className="font-medium">{agent.name}</TableCell>
                   <TableCell className="text-muted-foreground">{agent.position}</TableCell>
                   <TableCell className="text-muted-foreground">{agent.description}</TableCell>
                   <TableCell className="text-right">
-                    <AgentRowActions agent={agent} />
+                    <AgentRowActions agent={agent} companyId={companyId} />
                   </TableCell>
                 </TableRow>
               ))
