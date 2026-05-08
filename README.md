@@ -19,3 +19,19 @@ To use the components in your app, import them as follows:
 ```tsx
 import { Button } from "@/components/ui/button";
 ```
+
+## Docker
+
+Run the app with PostgreSQL:
+
+```bash
+docker compose up --build
+```
+
+The app runs on `http://localhost:3000`. The container runs `prisma migrate deploy` before starting Next.js.
+
+Set a real `AUTH_SECRET` for non-local use:
+
+```bash
+AUTH_SECRET="replace-with-a-long-random-string" docker compose up --build
+```

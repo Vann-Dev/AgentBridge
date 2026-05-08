@@ -1,0 +1,12 @@
+.git
+.next
+coverage
+node_modules
+Dockerfile
+docker-compose.yml
+.dockerignore
+.env
+.env*.local
+*.log
+*.tsbuildinfo
+generated/prisma
