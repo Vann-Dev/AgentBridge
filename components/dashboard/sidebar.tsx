@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
+import { ChangePasswordDialog } from "@/components/dashboard/change-password-dialog"
 import { CreateCompanyDialog } from "@/components/dashboard/create-company-dialog"
 import { cn } from "@/lib/utils"
 
@@ -90,6 +91,7 @@ export function DashboardSidebar({
       <div className="mt-auto space-y-3 rounded-2xl bg-muted p-3 text-sm">
         <p className="text-muted-foreground">Signed in as</p>
         <p className="font-medium">{username}</p>
+        <ChangePasswordDialog />
         <form action="/logout" method="post">
           <Button className="w-full" variant="outline" size="sm" type="submit">
             Log out
