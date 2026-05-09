@@ -12,14 +12,11 @@ export default function LoginPage() {
           </p>
           <CardTitle className="text-2xl">Sign in</CardTitle>
           <CardDescription>
-            Use the seeded admin account to enter the workspace.
+            Enter your workspace credentials.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm />
-          <p className="mt-5 rounded-2xl bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
-            admin / 12345678
-          </p>
         </CardContent>
       </Card>
     </main>
