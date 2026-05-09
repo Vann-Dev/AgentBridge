@@ -6,7 +6,7 @@ type DashboardShellProps = {
   children: ReactNode
   companies: Array<{ id: string; name: string }>
   activeCompany: { id: string; name: string } | null
-  activePath: "overview" | "agents" | "projects"
+  activePath: "overview" | "agents" | "projects" | "settings"
   username: string
 }
 

@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { ChangePasswordDialog } from "@/components/dashboard/change-password-dialog"
+import { ChangeUsernameDialog } from "@/components/dashboard/change-username-dialog"
 import { CreateCompanyDialog } from "@/components/dashboard/create-company-dialog"
 import { cn } from "@/lib/utils"
 
@@ -13,7 +14,7 @@ type Company = {
 type DashboardSidebarProps = {
   companies: Company[]
   activeCompany: Company | null
-  activePath: "overview" | "agents" | "projects"
+  activePath: "overview" | "agents" | "projects" | "settings"
   username: string
 }
 
@@ -34,6 +35,11 @@ export function DashboardSidebar({
       label: "Projects",
       href: dashboardHref(activeCompany?.id ?? null, "/projects"),
       key: "projects",
+    },
+    {
+      label: "Settings",
+      href: dashboardHref(activeCompany?.id ?? null, "/settings"),
+      key: "settings",
     },
   ] as const
 
@@ -91,6 +97,7 @@ export function DashboardSidebar({
       <div className="mt-auto space-y-3 rounded-2xl bg-muted p-3 text-sm">
         <p className="text-muted-foreground">Signed in as</p>
         <p className="font-medium">{username}</p>
+        <ChangeUsernameDialog username={username} />
         <ChangePasswordDialog />
         <form action="/logout" method="post">
           <Button className="w-full" variant="outline" size="sm" type="submit">
