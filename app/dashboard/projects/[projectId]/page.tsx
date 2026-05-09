@@ -82,7 +82,11 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           </CardContent>
         </Card>
 
-        <TaskKanban projectId={project.id} tasks={project.tasks} />
+        <TaskKanban
+          agents={project.company.agents}
+          projectId={project.id}
+          tasks={project.tasks}
+        />
       </div>
     </DashboardShell>
   )
