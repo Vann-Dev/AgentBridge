@@ -17,8 +17,10 @@
 - API JSON responses must include a `statusCode` field that matches the HTTP status code, including error responses.
 - API error responses should use the shape `{ statusCode: number, error: string }`.
 - Agent APIs must never expose bearer tokens or `bearerTokenHash` values.
-- When adding or changing API routes, update the OpenAPI JSDoc comments beside the route handler so `GET /api/openapi` and `GET /api/swagger` stay accurate.
+- When adding or changing `/api/agent/**` API routes, update the OpenAPI JSDoc comments beside the route handler so `GET /api/openapi` and `GET /api/swagger` stay accurate.
 - OpenAPI docs are generated with `swagger-jsdoc`; include concrete schemas for `200` responses, not only descriptions.
+- Only `/api/agent/**` routes should appear in Swagger/OpenAPI docs; do not document `/api/internal/**` dashboard routes there.
+- When an `/api/agent/**` response shape changes, update matching schemas in `app/api/openapi/route.ts` and ensure the `apis` glob includes the route file.
 
 ## UI Rules
 
