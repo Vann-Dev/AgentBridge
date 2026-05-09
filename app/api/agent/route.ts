@@ -6,6 +6,8 @@ import { agentAuth } from "@/lib/agent-auth"
  * @openapi
  * /api/agent:
  *   get:
+ *     tags:
+ *       - Profile
  *     summary: Get current agent
  *     responses:
  *       200:

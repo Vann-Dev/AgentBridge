@@ -9,6 +9,24 @@ const openApiDocument = swaggerJsdoc({
       version: "0.1.0",
     },
     servers: [{ url: "/" }],
+    tags: [
+      {
+        name: "Profile",
+        description: "Current authenticated agent profile.",
+      },
+      {
+        name: "Agents",
+        description: "Manage agents in the authenticated agent's company.",
+      },
+      {
+        name: "Projects",
+        description: "Manage projects in the authenticated agent's company.",
+      },
+      {
+        name: "Tasks",
+        description: "Manage tasks in the authenticated agent's company.",
+      },
+    ],
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -56,6 +74,7 @@ const openApiDocument = swaggerJsdoc({
             name: { type: "string" },
             description: { type: "string" },
             position: { type: "string" },
+            companyId: { type: "string", format: "uuid" },
             _count: {
               type: "object",
               properties: { tasks: { type: "integer" } },
@@ -164,11 +183,55 @@ const openApiDocument = swaggerJsdoc({
           },
           required: ["statusCode", "agent"],
         },
+        AgentCreatedResponse: {
+          type: "object",
+          properties: {
+            statusCode: { type: "integer", enum: [201] },
+            agent: { $ref: "#/components/schemas/Agent" },
+            token: { type: "string" },
+          },
+          required: ["statusCode", "agent", "token"],
+        },
+        CompanyAgentResponse: {
+          type: "object",
+          properties: {
+            statusCode: { type: "integer", enum: [200] },
+            agent: { $ref: "#/components/schemas/CompanyAgent" },
+          },
+          required: ["statusCode", "agent"],
+        },
         TaskResponse: {
           type: "object",
           properties: {
             statusCode: { type: "integer", enum: [200] },
             task: { $ref: "#/components/schemas/TaskWithProject" },
+          },
+          required: ["statusCode", "task"],
+        },
+        TaskCreatedResponse: {
+          type: "object",
+          properties: {
+            statusCode: { type: "integer", enum: [201] },
+            task: {
+              allOf: [
+                { $ref: "#/components/schemas/Task" },
+                {
+                  type: "object",
+                  properties: {
+                    assigned: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", format: "uuid" },
+                        name: { type: "string" },
+                        position: { type: "string" },
+                      },
+                      required: ["id", "name", "position"],
+                    },
+                  },
+                  required: ["assigned"],
+                },
+              ],
+            },
           },
           required: ["statusCode", "task"],
         },
@@ -196,6 +259,46 @@ const openApiDocument = swaggerJsdoc({
           },
           required: ["statusCode", "projects"],
         },
+        ProjectResponse: {
+          type: "object",
+          properties: {
+            statusCode: { type: "integer" },
+            project: { $ref: "#/components/schemas/Project" },
+          },
+          required: ["statusCode", "project"],
+        },
+        ProjectWithTasksResponse: {
+          type: "object",
+          properties: {
+            statusCode: { type: "integer", enum: [200] },
+            project: { $ref: "#/components/schemas/ProjectWithTasks" },
+          },
+          required: ["statusCode", "project"],
+        },
+        DeleteAgentResponse: {
+          type: "object",
+          properties: {
+            statusCode: { type: "integer", enum: [200] },
+            agentId: { type: "string", format: "uuid" },
+          },
+          required: ["statusCode", "agentId"],
+        },
+        DeleteProjectResponse: {
+          type: "object",
+          properties: {
+            statusCode: { type: "integer", enum: [200] },
+            projectId: { type: "string", format: "uuid" },
+          },
+          required: ["statusCode", "projectId"],
+        },
+        DeleteTaskResponse: {
+          type: "object",
+          properties: {
+            statusCode: { type: "integer", enum: [200] },
+            taskId: { type: "string", format: "uuid" },
+          },
+          required: ["statusCode", "taskId"],
+        },
       },
       responses: {
         BadRequest: {
@@ -214,6 +317,18 @@ const openApiDocument = swaggerJsdoc({
       parameters: {
         TaskId: {
           name: "taskId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+        AgentId: {
+          name: "agentId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+        ProjectId: {
+          name: "projectId",
           in: "path",
           required: true,
           schema: { type: "string", format: "uuid" },

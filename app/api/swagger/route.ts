@@ -18,6 +18,12 @@ const swaggerHtml = `<!doctype html>
           url: "/api/openapi",
           dom_id: "#swagger-ui",
           deepLinking: true,
+          docExpansion: "list",
+          operationsSorter: "method",
+          tagsSorter: (a, b) => {
+            const order = ["Profile", "Agents", "Projects", "Tasks"]
+            return order.indexOf(a) - order.indexOf(b)
+          },
           presets: [SwaggerUIBundle.presets.apis],
           layout: "BaseLayout"
         })
