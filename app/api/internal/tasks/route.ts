@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
+import { createAuditLog } from "@/lib/api/audit-log"
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -55,6 +56,7 @@ export async function POST(request: Request) {
     },
     select: {
       id: true,
+      companyId: true,
       company: {
         select: {
           agents: {
@@ -113,6 +115,14 @@ export async function POST(request: Request) {
         },
       },
     },
+  })
+
+  await createAuditLog({
+    companyId: project.companyId,
+    action: "task.created",
+    target: { type: "task", id: task.id, name: task.name },
+    actor: { type: "user", id: session.userId, name: session.username },
+    details: `Created as ${task.status} and assigned to ${task.assigned.name}.`,
   })
 
   return NextResponse.json({ statusCode: 201, task }, { status: 201 })
