@@ -14,6 +14,7 @@ import { getDashboardContext } from "@/lib/dashboard/companies"
 import { prisma } from "@/lib/prisma"
 
 import { CreateTaskDialog } from "./create-task-dialog"
+import { ProjectOverview } from "./project-overview"
 import { TaskKanban } from "./task-kanban"
 
 type ProjectDetailPageProps = {
@@ -74,19 +75,33 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
             </div>
           </CardHeader>
           <CardContent>
-            <Button asChild variant="outline">
-              <Link href={`/dashboard/projects?company=${project.companyId}`}>
-                Back to projects
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link href={`/dashboard/projects?company=${project.companyId}`}>
+                  Back to projects
+                </Link>
+              </Button>
+              <Button asChild variant="secondary">
+                <a href="#project-overview">Overview</a>
+              </Button>
+              <Button asChild variant="ghost">
+                <a href="#project-kanban">Kanban board</a>
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
-        <TaskKanban
-          agents={project.company.agents}
-          projectId={project.id}
-          tasks={project.tasks}
-        />
+        <section id="project-overview" className="scroll-mt-6">
+          <ProjectOverview initialProject={project} projectId={project.id} />
+        </section>
+
+        <section id="project-kanban" className="scroll-mt-6">
+          <TaskKanban
+            agents={project.company.agents}
+            projectId={project.id}
+            tasks={project.tasks}
+          />
+        </section>
       </div>
     </DashboardShell>
   )
