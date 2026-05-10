@@ -34,6 +34,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const blockingReason =
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : undefined
 
+  if (hasNatsukiReadAt && natsukiReadAt === undefined) {
+    return badRequest("Invalid Natsuki read marker.")
+  }
+
   if (status && !statuses.includes(status as Status)) {
     return badRequest("Invalid task status.")
   }
@@ -133,11 +137,12 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 }
 
 function parseReadMarker(value: unknown) {
+  if (value === undefined) return null
   if (value === true || value === "true") return new Date()
   if (value === null || value === false || value === "" || value === "false") return null
-  if (typeof value !== "string") return null
+  if (typeof value !== "string") return undefined
 
   const date = new Date(value)
 
-  return Number.isNaN(date.getTime()) ? null : date
+  return Number.isNaN(date.getTime()) ? undefined : date
 }

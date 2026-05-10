@@ -194,6 +194,13 @@ export async function POST(request: NextRequest) {
   const blockingReason =
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : ""
 
+  if (natsukiReadAt === undefined) {
+    return NextResponse.json(
+      { statusCode: 400, error: "Invalid Natsuki read marker" },
+      { status: 400 }
+    )
+  }
+
   if (!projectId || !assignedAgentId || !name || !job) {
     return NextResponse.json(
       { statusCode: 400, error: "Project, agent, name, and job are required." },
@@ -247,11 +254,12 @@ export async function POST(request: NextRequest) {
 }
 
 function parseReadMarker(value: unknown) {
+  if (value === undefined) return null
   if (value === true || value === "true") return new Date()
   if (value === null || value === false || value === "" || value === "false") return null
-  if (typeof value !== "string") return null
+  if (typeof value !== "string") return undefined
 
   const date = new Date(value)
 
-  return Number.isNaN(date.getTime()) ? null : date
+  return Number.isNaN(date.getTime()) ? undefined : date
 }

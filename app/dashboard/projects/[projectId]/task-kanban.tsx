@@ -187,6 +187,10 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
   function updateTask(formData: FormData) {
     if (!editingTask) return
 
+    const originalReadAt = editingTask.natsukiReadAt
+      ? new Date(editingTask.natsukiReadAt).toISOString()
+      : null
+
     updateMutation.mutate({
       taskId: editingTask.id,
       payload: {
@@ -195,7 +199,9 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
         job: String(formData.get("job") ?? ""),
         status: String(formData.get("status") ?? ""),
         note: String(formData.get("note") ?? ""),
-        natsukiReadAt: formData.get("natsukiReadAt") ? new Date().toISOString() : null,
+        natsukiReadAt: formData.get("natsukiReadAt")
+          ? originalReadAt ?? new Date().toISOString()
+          : null,
         blockingReason: String(formData.get("blockingReason") ?? ""),
       },
     })
@@ -463,7 +469,9 @@ function ExpandableText({
           </Button>
         ) : null}
       </div>
-      <p className={cn("mt-1 whitespace-pre-wrap", compact && !expanded ? "line-clamp-3" : "")}>
+      <p
+        className={cn("mt-1 whitespace-pre-wrap", compact && !expanded ? "max-h-16 overflow-hidden" : "")}
+      >
         {text}
       </p>
     </div>

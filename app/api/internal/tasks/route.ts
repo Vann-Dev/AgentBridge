@@ -32,6 +32,10 @@ export async function POST(request: Request) {
   const blockingReason =
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : ""
 
+  if (natsukiReadAt === undefined) {
+    return badRequest("Invalid Natsuki read marker.")
+  }
+
   if (!projectId || !assignedAgentId || !name || !job) {
     return badRequest("Project, agent, name, and job are required.")
   }
@@ -80,11 +84,12 @@ export async function POST(request: Request) {
 }
 
 function parseReadMarker(value: unknown) {
+  if (value === undefined) return null
   if (value === true || value === "true") return new Date()
   if (value === null || value === false || value === "" || value === "false") return null
-  if (typeof value !== "string") return null
+  if (typeof value !== "string") return undefined
 
   const date = new Date(value)
 
-  return Number.isNaN(date.getTime()) ? null : date
+  return Number.isNaN(date.getTime()) ? undefined : date
 }
