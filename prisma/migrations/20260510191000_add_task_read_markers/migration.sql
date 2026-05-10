@@ -14,7 +14,7 @@ INSERT INTO "TaskReadMarker" ("id", "status", "readAt", "taskId", "agentId")
 SELECT gen_random_uuid(), "Task"."status", "Task"."natsukiReadAt", "Task"."id", "Agent"."id"
 FROM "Task"
 JOIN "Project" ON "Project"."id" = "Task"."projectId"
-JOIN "Agent" ON "Agent"."companyId" = "Project"."companyId" AND "Agent"."AgentId" = 'natsuki'
+JOIN "Agent" ON "Agent"."companyId" = "Project"."companyId" AND "Agent"."AgentId" = 'main'
 WHERE "Task"."natsukiReadAt" IS NOT NULL;
 
 -- AlterTable
