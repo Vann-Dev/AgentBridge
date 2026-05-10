@@ -16,13 +16,15 @@ metadata:
 
 Use this skill when acting as an external agent that needs to read or update work through the AgentBridge `/api/agent` HTTP API.
 
+Repository path: `agent-skill/SKILL.md`.
+
 ## Core Rules
 
 - All agent API paths are under `/api/agent`.
 - Authenticate every request with the company token: `Authorization: Bearer <company-token>`.
 - Identify the acting agent on every request with `AgentId: <your-agent-id>`.
 - Always use your own known agent id as the `AgentId` header value.
-- `AgentId` is the agent's unique API identifier, not necessarily the database primary key `id`.
+- `AgentId` is the agent's stable API identifier, not necessarily the database primary key `id`.
 - Never log, print, store, or expose the bearer token.
 - Treat `Company.bearerTokenHash` as private; the API must never return it and agents must not ask for it.
 - Read the `statusCode` field in every JSON response. It should match the HTTP status.
@@ -43,6 +45,22 @@ curl "$AGENTBRIDGE_BASE_URL/api/agent" \
 ```
 
 Use `Content-Type: application/json` on requests with JSON bodies.
+
+## Task Notes and Read Markers
+
+Tasks can include two coordination fields in addition to the work instructions:
+
+- `note`: optional string or `null`. Use this as a concise implementation note, completion summary, QA handoff, or status update. When marking a task `done`, include what changed, changed files/branch/commit/PR when relevant, and check results.
+- `readBy`: array of agent `AgentId` strings that have read the task in its **current status**. The underlying read tracking is per task, per agent, and per status. If `main` has read a task in `todo`, that does not mean `main` has read it in `done`; each status is independent.
+
+`readBy` request behavior:
+
+- On task create, optional `readBy` marks the listed agents as read for the initial status.
+- On task update, optional `readBy` replaces the readers for the task's resulting/current status only.
+- Omit `readBy` when changing status or note unless you intentionally want the current status to become unread; status/note changes without explicit readers clear read markers for the resulting status.
+- `readBy` values are API `AgentId` strings, not database ids or timestamps.
+
+Legacy hardcoded Natsuki-only read timestamps are not the public read-tracking API. Use `readBy`.
 
 ## Endpoints
 
@@ -234,6 +252,8 @@ Response:
           "name": "Task Name",
           "job": "Task instructions",
           "status": "todo",
+          "note": null,
+          "readBy": [],
           "blockingReason": null,
           "assigned": {
             "id": "uuid",
@@ -292,6 +312,8 @@ Response:
         "name": "Task Name",
         "job": "Task instructions",
         "status": "todo",
+        "note": "Completed responsive layout and deployment wiring.",
+        "readBy": ["main"],
         "blockingReason": null,
         "assigned": {
           "id": "uuid",
@@ -377,6 +399,8 @@ Response:
       "name": "Task Name",
       "job": "Task instructions",
       "status": "todo",
+      "note": null,
+      "readBy": [],
       "blockingReason": null,
       "project": {
         "id": "uuid",
@@ -401,10 +425,12 @@ Creates a task in the current company and assigns it to a company agent.
 Body fields:
 
 - `projectId`: required project id in the current company.
-- `assignedAgentId`: required agent id in the current company.
+- `assignedAgentId`: required database id of an agent in the current company.
 - `name`: required non-empty string; trimmed.
 - `job`: required non-empty string; trimmed.
 - `status`: optional; one of `todo`, `inprogress`, `done`, `blocked`; defaults to `todo`.
+- `note`: optional string; trimmed; blank or omitted is stored as `null`.
+- `readBy`: optional array of agent `AgentId` strings to mark as read for the initial status; defaults to `[]`.
 - `blockingReason`: optional string; trimmed; blank or omitted is stored as `null`.
 
 Example:
@@ -414,7 +440,7 @@ curl -X POST "$AGENTBRIDGE_BASE_URL/api/agent/tasks" \
   -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
   -H "AgentId: <your-agent-id>" \
   -H "Content-Type: application/json" \
-  -d '{"projectId":"'$PROJECT_ID'","assignedAgentId":"'$AGENT_ID'","name":"Build landing page","job":"Implement the responsive landing page","status":"todo","blockingReason":null}'
+  -d '{"projectId":"'$PROJECT_ID'","assignedAgentId":"'$AGENT_ID'","name":"Build landing page","job":"Implement the responsive landing page","status":"todo","note":null,"readBy":[],"blockingReason":null}'
 ```
 
 Response:
@@ -424,11 +450,11 @@ Response:
   "statusCode": 201,
   "task": {
     "id": "uuid",
-    "projectId": "uuid",
-    "assignedAgentId": "uuid",
     "name": "Build landing page",
     "job": "Implement the responsive landing page",
     "status": "todo",
+    "note": null,
+    "readBy": [],
     "blockingReason": null,
     "assigned": {
       "id": "uuid",
@@ -455,6 +481,8 @@ Response:
     "name": "Task Name",
     "job": "Task instructions",
     "status": "todo",
+    "note": "Completed responsive layout and deployment wiring.",
+    "readBy": ["main"],
     "blockingReason": null,
     "project": {
       "id": "uuid",
@@ -473,17 +501,18 @@ Response:
 
 `PATCH /api/agent/tasks/{taskId}`
 
-Updates one task in the current company, including reassignment.
+Updates one task in the current company, including reassignment. The response includes `readBy` for the task's resulting status.
 
 Body fields:
 
-- `assignedAgentId`: optional agent id in the current company.
+- `assignedAgentId`: optional database id of an agent in the current company.
 - `name`: optional non-empty string; trimmed.
 - `job`: optional non-empty string; trimmed.
 - `status`: optional; one of `todo`, `inprogress`, `done`, `blocked`.
-- `blockingReason`: optional; string or `null`.
+- `note`: optional string or `null`; trimmed; blank or `null` is stored as `null`.
+- `readBy`: optional array of agent `AgentId` strings to replace readers for the resulting status.
+- `blockingReason`: optional string or `null`; blank or whitespace-only values are stored as `null`.
 - At least one field is required.
-- Blank or whitespace-only `blockingReason` is stored as `null`.
 
 Examples:
 
@@ -504,7 +533,7 @@ curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
   -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
   -H "AgentId: <your-agent-id>" \
   -H "Content-Type: application/json" \
-  -d '{"status":"done","blockingReason":null}'
+  -d '{"status":"done","note":"Implemented layout updates on branch example/branch. lint/typecheck/build passed.","readBy":["main"],"blockingReason":null}'
 ```
 
 Response:
@@ -517,6 +546,8 @@ Response:
     "name": "Task Name",
     "job": "Task instructions",
     "status": "inprogress",
+    "note": null,
+    "readBy": [],
     "blockingReason": null,
     "project": {
       "id": "uuid",
@@ -542,11 +573,15 @@ Response:
 }
 ```
 
+## Archive Behavior
+
+The current `/api/agent` API does not expose a task archive endpoint or `archivedAt` field. If dashboard/internal archive behavior exists in a branch, external agents should still use the documented task list/detail/update/delete endpoints above unless `/api/agent` routes and OpenAPI are explicitly updated.
+
 ## Error Handling
 
 Common responses:
 
-- `400`: bad query, invalid JSON body, invalid status, invalid blocking reason, or empty update body.
+- `400`: bad query, invalid JSON body, invalid status, invalid assigned agent, invalid task note, invalid read markers, invalid blocking reason, or empty update body.
 - `401`: missing, malformed, or invalid bearer token or missing/invalid `AgentId` header.
 - `404`: company-scoped record not found.
 
@@ -573,6 +608,9 @@ Known error messages:
 - `Assigned agent not found`
 - `Task name is required`
 - `Task job is required`
+- `Invalid task note`
+- `Invalid read markers`
+- `Read marker agent not found`
 - `Invalid blocking reason`
 - `No task updates provided`
 - `Task not found`
@@ -589,18 +627,20 @@ Example error:
 ## Recommended Agent Workflow
 
 1. Call `GET /api/agent` to verify identity and company context.
-2. Call `GET /api/agent/tasks?status=todo` and `GET /api/agent/tasks?status=inprogress` to find active work.
+2. Call `GET /api/agent/tasks?status=blocked`, `GET /api/agent/tasks?status=inprogress`, and `GET /api/agent/tasks?status=todo` to find active work in priority order.
 3. Before starting work, update the task with `PATCH /api/agent/tasks/{taskId}` and body `{ "status": "inprogress", "blockingReason": null }`.
 4. If blocked, update with `{ "status": "blocked", "blockingReason": "clear reason and needed next action" }`.
-5. When complete, update with `{ "status": "done", "blockingReason": null }`.
-6. Use company-scoped task update endpoints deliberately: they can update or reassign any task in the current company, not only your own tasks.
-7. Use create/update/delete endpoints only when your role requires coordination or administration; otherwise prefer read-only project and agent context plus updates to your own active task.
+5. When complete, update with `{ "status": "done", "note": "concise completion summary with files/branch/checks", "blockingReason": null }`.
+6. Use `readBy` only when intentionally setting read markers for the task's current/resulting status.
+7. Use company-scoped task update endpoints deliberately: they can update or reassign any task in the current company, not only your own tasks.
+8. Use create/update/delete endpoints only when your role requires coordination or administration; otherwise prefer read-only project and agent context plus updates to your own active task.
 
 ## Implementation Notes For Agents
 
 - Prefer `GET /api/agent/tasks` for personal work queues.
 - Use `GET /api/agent/projects` or `GET /api/agent/projects/{projectId}` when project context or other task assignments matter.
-- Use `GET /api/agent/agents` only when you need names, positions, or task counts for company agents.
+- Use `GET /api/agent/agents` only when you need names, positions, database ids for assignment, or task counts.
 - Do not assume a missing record exists elsewhere; `404` intentionally hides records outside your company scope.
 - Use exact lowercase status values. `inprogress` is one word.
 - Keep blocking reasons short, actionable, and safe for dashboard display.
+- Keep done-task notes concise but complete enough for review: what changed, changed files, branch/commit/PR, and checks run.
