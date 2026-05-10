@@ -187,6 +187,9 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
   function updateTask(formData: FormData) {
     if (!editingTask) return
 
+    const note = String(formData.get("note") ?? "")
+    const originalNote = editingTask.note ?? ""
+    const noteChanged = note.trim() !== originalNote.trim()
     const originalReadAt = editingTask.natsukiReadAt
       ? new Date(editingTask.natsukiReadAt).toISOString()
       : null
@@ -198,10 +201,11 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
         name: String(formData.get("name") ?? ""),
         job: String(formData.get("job") ?? ""),
         status: String(formData.get("status") ?? ""),
-        note: String(formData.get("note") ?? ""),
-        natsukiReadAt: formData.get("natsukiReadAt")
-          ? originalReadAt ?? new Date().toISOString()
-          : null,
+        note,
+        natsukiReadAt:
+          formData.get("natsukiReadAt") && !noteChanged
+            ? originalReadAt ?? new Date().toISOString()
+            : null,
         blockingReason: String(formData.get("blockingReason") ?? ""),
       },
     })
@@ -367,7 +371,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                   <Label htmlFor="edit-task-natsuki-read">Natsuki/main read marker</Label>
                   <p className="text-muted-foreground">
                     {editingTask.natsukiReadAt
-                      ? `Marked read ${new Date(editingTask.natsukiReadAt).toLocaleString()}`
+                      ? `Marked read ${new Date(editingTask.natsukiReadAt).toLocaleString()}. Changing the note marks it unread again.`
                       : "Not read yet"}
                   </p>
                 </div>

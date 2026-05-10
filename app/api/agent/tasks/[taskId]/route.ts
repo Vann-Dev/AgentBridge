@@ -276,7 +276,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       id: taskId,
       project: { companyId: agent.companyId },
     },
-    select: { id: true, projectId: true },
+    select: { id: true, note: true, natsukiReadAt: true, projectId: true },
   })
 
   if (!task) {
@@ -298,6 +298,15 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         { status: 400 }
       )
     }
+  }
+
+  if (
+    data.note !== undefined &&
+    data.note !== task.note &&
+    task.natsukiReadAt &&
+    updates.natsukiReadAt === undefined
+  ) {
+    data.natsukiReadAt = null
   }
 
   const updatedTask = await prisma.task.update({

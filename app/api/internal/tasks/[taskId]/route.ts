@@ -64,7 +64,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       id: taskId,
       project: { company: { userId: session.userId } },
     },
-    select: { id: true, projectId: true },
+    select: { id: true, note: true, natsukiReadAt: true, projectId: true },
   })
 
   if (!task) {
@@ -88,6 +88,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
   }
 
+  const noteChanged = note !== undefined && (note || null) !== task.note
   const updatedTask = await prisma.task.update({
     where: { id: task.id },
     data: {
@@ -97,6 +98,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       ...(status ? { status: status as Status } : {}),
       ...(note !== undefined ? { note: note || null } : {}),
       ...(hasNatsukiReadAt ? { natsukiReadAt } : {}),
+      ...(noteChanged && task.natsukiReadAt ? { natsukiReadAt: null } : {}),
       ...(blockingReason !== undefined ? { blockingReason: blockingReason || null } : {}),
     },
     include: {
