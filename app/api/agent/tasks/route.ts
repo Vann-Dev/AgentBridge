@@ -31,6 +31,8 @@ const statuses = Object.values(Status)
  *                   name: "Build landing page"
  *                   job: "Implement the responsive landing page"
  *                   status: "todo"
+ *                   note: null
+ *                   natsukiReadAt: null
  *                   blockingReason: null
  *                   project:
  *                     id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
@@ -70,6 +72,8 @@ export async function GET(request: NextRequest) {
       name: true,
       job: true,
       status: true,
+      note: true,
+      natsukiReadAt: true,
       blockingReason: true,
       project: {
         select: {
@@ -116,6 +120,13 @@ export async function GET(request: NextRequest) {
  *                 type: string
  *               status:
  *                 $ref: '#/components/schemas/Status'
+ *               note:
+ *                 type: string
+ *                 nullable: true
+ *               natsukiReadAt:
+ *                 type: string
+ *                 format: date-time
+ *                 nullable: true
  *               blockingReason:
  *                 type: string
  *                 nullable: true
@@ -126,6 +137,8 @@ export async function GET(request: NextRequest) {
  *             name: "Build landing page"
  *             job: "Implement the responsive landing page"
  *             status: "todo"
+ *             note: "Completed responsive layout and deployment wiring."
+ *             natsukiReadAt: null
  *             blockingReason: null
  *     responses:
  *       201:
@@ -139,6 +152,8 @@ export async function GET(request: NextRequest) {
  *                 name: "Build landing page"
  *                 job: "Implement the responsive landing page"
  *                 status: "todo"
+ *                 note: "Completed responsive layout and deployment wiring."
+ *                 natsukiReadAt: null
  *                 blockingReason: null
  *                 assigned:
  *                   id: "550e8400-e29b-41d4-a716-446655440000"
@@ -164,6 +179,8 @@ export async function POST(request: NextRequest) {
     name?: unknown
     job?: unknown
     status?: unknown
+    note?: unknown
+    natsukiReadAt?: unknown
     blockingReason?: unknown
   } | null
 
@@ -172,8 +189,17 @@ export async function POST(request: NextRequest) {
   const name = typeof body?.name === "string" ? body.name.trim() : ""
   const job = typeof body?.job === "string" ? body.job.trim() : ""
   const status = typeof body?.status === "string" ? body.status : "todo"
+  const note = typeof body?.note === "string" ? body.note.trim() : ""
+  const natsukiReadAt = parseReadMarker(body?.natsukiReadAt)
   const blockingReason =
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : ""
+
+  if (natsukiReadAt === undefined) {
+    return NextResponse.json(
+      { statusCode: 400, error: "Invalid Natsuki read marker" },
+      { status: 400 }
+    )
+  }
 
   if (!projectId || !assignedAgentId || !name || !job) {
     return NextResponse.json(
@@ -209,6 +235,8 @@ export async function POST(request: NextRequest) {
       name,
       job,
       status: status as Status,
+      note: note || null,
+      natsukiReadAt,
       blockingReason: blockingReason || null,
     },
     include: {
@@ -223,4 +251,15 @@ export async function POST(request: NextRequest) {
   })
 
   return NextResponse.json({ statusCode: 201, task }, { status: 201 })
+}
+
+function parseReadMarker(value: unknown) {
+  if (value === undefined) return null
+  if (value === true || value === "true") return new Date()
+  if (value === null || value === false || value === "" || value === "false") return null
+  if (typeof value !== "string") return undefined
+
+  const date = new Date(value)
+
+  return Number.isNaN(date.getTime()) ? undefined : date
 }

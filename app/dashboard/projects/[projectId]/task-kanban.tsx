@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { ChevronDown } from "lucide-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Status } from "@/generated/prisma/enums"
@@ -49,6 +50,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { apiJson } from "@/lib/api/client"
+import { cn } from "@/lib/utils"
 
 
 type TaskCard = {
@@ -56,6 +58,8 @@ type TaskCard = {
   name: string
   job: string
   status: Status
+  note: string | null
+  natsukiReadAt: string | Date | null
   blockingReason: string | null
   assigned: {
     id: string
@@ -142,6 +146,8 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
         name: string
         job: string
         status: string
+        note: string
+        natsukiReadAt: string | Date | null
         blockingReason: string
       }
     }) =>
@@ -181,6 +187,13 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
   function updateTask(formData: FormData) {
     if (!editingTask) return
 
+    const note = String(formData.get("note") ?? "")
+    const originalNote = editingTask.note ?? ""
+    const noteChanged = note.trim() !== originalNote.trim()
+    const originalReadAt = editingTask.natsukiReadAt
+      ? new Date(editingTask.natsukiReadAt).toISOString()
+      : null
+
     updateMutation.mutate({
       taskId: editingTask.id,
       payload: {
@@ -188,6 +201,11 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
         name: String(formData.get("name") ?? ""),
         job: String(formData.get("job") ?? ""),
         status: String(formData.get("status") ?? ""),
+        note,
+        natsukiReadAt:
+          formData.get("natsukiReadAt") && !noteChanged
+            ? originalReadAt ?? new Date().toISOString()
+            : null,
         blockingReason: String(formData.get("blockingReason") ?? ""),
       },
     })
@@ -238,8 +256,17 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                           size="sm"
                         >
                           <CardHeader>
-                            <CardTitle>{task.name}</CardTitle>
-                            <CardDescription>{task.job}</CardDescription>
+                            <div className="flex items-start justify-between gap-2">
+                              <CardTitle>{task.name}</CardTitle>
+                              {task.status === Status.done ? (
+                                <Badge variant={task.natsukiReadAt ? "secondary" : "outline"}>
+                                  {task.natsukiReadAt ? "Read" : "Unread"}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <CardDescription>
+                              <ExpandableText label="Job" text={task.job} />
+                            </CardDescription>
                           </CardHeader>
                           <CardContent className="space-y-3">
                             <div className="rounded-2xl bg-muted p-3 text-sm">
@@ -249,10 +276,13 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                               <p className="mt-1 font-medium">{task.assigned.name}</p>
                               <p className="text-muted-foreground">{task.assigned.position}</p>
                             </div>
+                            {task.note ? <ExpandableText label="Done summary" text={task.note} /> : null}
                             {task.blockingReason ? (
-                              <p className="rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                                {task.blockingReason}
-                              </p>
+                              <ExpandableText
+                                className="border border-destructive/30 bg-destructive/10 text-destructive"
+                                label="Blocking reason"
+                                text={task.blockingReason}
+                              />
                             ) : null}
                           </CardContent>
                         </Card>
@@ -327,6 +357,33 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="edit-task-note">Done summary / note</Label>
+                <Textarea
+                  id="edit-task-note"
+                  name="note"
+                  defaultValue={editingTask.note ?? ""}
+                  placeholder="Summarize what changed when this task is done"
+                  rows={3}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-2xl border p-3 text-sm">
+                <div>
+                  <Label htmlFor="edit-task-natsuki-read">Natsuki/main read marker</Label>
+                  <p className="text-muted-foreground">
+                    {editingTask.natsukiReadAt
+                      ? `Marked read ${new Date(editingTask.natsukiReadAt).toLocaleString()}. Changing the note marks it unread again.`
+                      : "Not read yet"}
+                  </p>
+                </div>
+                <input
+                  id="edit-task-natsuki-read"
+                  name="natsukiReadAt"
+                  type="checkbox"
+                  defaultChecked={Boolean(editingTask.natsukiReadAt)}
+                  className="size-4 accent-primary"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="edit-task-blocking-reason">Blocking reason</Label>
                 <Textarea
                   id="edit-task-blocking-reason"
@@ -376,6 +433,51 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+
+function ExpandableText({
+  className,
+  label,
+  text,
+}: {
+  className?: string
+  label: string
+  text: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const compact = text.length > 160 || text.includes("\n")
+
+  return (
+    <div className={cn("rounded-2xl bg-muted p-3 text-sm", className)}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+        {compact ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="h-6 px-2"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              setExpanded((value) => !value)
+            }}
+          >
+            {expanded ? "Show less" : "Show more"}
+            <ChevronDown
+              className={cn("transition-transform", expanded ? "rotate-180" : "")}
+            />
+          </Button>
+        ) : null}
+      </div>
+      <p
+        className={cn("mt-1 whitespace-pre-wrap", compact && !expanded ? "max-h-16 overflow-hidden" : "")}
+      >
+        {text}
+      </p>
     </div>
   )
 }

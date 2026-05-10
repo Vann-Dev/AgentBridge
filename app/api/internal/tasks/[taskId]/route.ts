@@ -19,6 +19,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     name?: unknown
     job?: unknown
     status?: unknown
+    note?: unknown
+    natsukiReadAt?: unknown
     blockingReason?: unknown
   } | null
   const assignedAgentId =
@@ -26,8 +28,15 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const name = typeof body?.name === "string" ? body.name.trim() : undefined
   const job = typeof body?.job === "string" ? body.job.trim() : undefined
   const status = typeof body?.status === "string" ? body.status : undefined
+  const note = typeof body?.note === "string" ? body.note.trim() : undefined
+  const natsukiReadAt = parseReadMarker(body?.natsukiReadAt)
+  const hasNatsukiReadAt = body?.natsukiReadAt !== undefined
   const blockingReason =
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : undefined
+
+  if (hasNatsukiReadAt && natsukiReadAt === undefined) {
+    return badRequest("Invalid Natsuki read marker.")
+  }
 
   if (status && !statuses.includes(status as Status)) {
     return badRequest("Invalid task status.")
@@ -37,7 +46,15 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return badRequest("Task name and job are required.")
   }
 
-  if (!assignedAgentId && !name && !job && !status && blockingReason === undefined) {
+  if (
+    !assignedAgentId &&
+    !name &&
+    !job &&
+    !status &&
+    note === undefined &&
+    !hasNatsukiReadAt &&
+    blockingReason === undefined
+  ) {
     return badRequest("No task changes provided.")
   }
 
@@ -47,7 +64,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       id: taskId,
       project: { company: { userId: session.userId } },
     },
-    select: { id: true, projectId: true },
+    select: { id: true, note: true, natsukiReadAt: true, projectId: true },
   })
 
   if (!task) {
@@ -71,6 +88,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
   }
 
+  const noteChanged = note !== undefined && (note || null) !== task.note
   const updatedTask = await prisma.task.update({
     where: { id: task.id },
     data: {
@@ -78,6 +96,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       ...(name ? { name } : {}),
       ...(job ? { job } : {}),
       ...(status ? { status: status as Status } : {}),
+      ...(note !== undefined ? { note: note || null } : {}),
+      ...(hasNatsukiReadAt ? { natsukiReadAt } : {}),
+      ...(noteChanged && task.natsukiReadAt ? { natsukiReadAt: null } : {}),
       ...(blockingReason !== undefined ? { blockingReason: blockingReason || null } : {}),
     },
     include: {
@@ -115,4 +136,15 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   await prisma.task.delete({ where: { id: task.id } })
 
   return NextResponse.json({ statusCode: 200, taskId: task.id })
+}
+
+function parseReadMarker(value: unknown) {
+  if (value === undefined) return null
+  if (value === true || value === "true") return new Date()
+  if (value === null || value === false || value === "" || value === "false") return null
+  if (typeof value !== "string") return undefined
+
+  const date = new Date(value)
+
+  return Number.isNaN(date.getTime()) ? undefined : date
 }

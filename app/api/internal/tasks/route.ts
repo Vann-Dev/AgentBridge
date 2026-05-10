@@ -17,6 +17,8 @@ export async function POST(request: Request) {
     name?: unknown
     job?: unknown
     status?: unknown
+    note?: unknown
+    natsukiReadAt?: unknown
     blockingReason?: unknown
   } | null
 
@@ -25,8 +27,14 @@ export async function POST(request: Request) {
   const name = typeof body?.name === "string" ? body.name.trim() : ""
   const job = typeof body?.job === "string" ? body.job.trim() : ""
   const status = typeof body?.status === "string" ? body.status : "todo"
+  const note = typeof body?.note === "string" ? body.note.trim() : ""
+  const natsukiReadAt = parseReadMarker(body?.natsukiReadAt)
   const blockingReason =
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : ""
+
+  if (natsukiReadAt === undefined) {
+    return badRequest("Invalid Natsuki read marker.")
+  }
 
   if (!projectId || !assignedAgentId || !name || !job) {
     return badRequest("Project, agent, name, and job are required.")
@@ -57,6 +65,8 @@ export async function POST(request: Request) {
       name,
       job,
       status: status as Status,
+      note: note || null,
+      natsukiReadAt,
       blockingReason: blockingReason || null,
     },
     include: {
@@ -71,4 +81,15 @@ export async function POST(request: Request) {
   })
 
   return NextResponse.json({ statusCode: 201, task }, { status: 201 })
+}
+
+function parseReadMarker(value: unknown) {
+  if (value === undefined) return null
+  if (value === true || value === "true") return new Date()
+  if (value === null || value === false || value === "" || value === "false") return null
+  if (typeof value !== "string") return undefined
+
+  const date = new Date(value)
+
+  return Number.isNaN(date.getTime()) ? undefined : date
 }
