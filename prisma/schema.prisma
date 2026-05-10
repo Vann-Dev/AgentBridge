@@ -52,10 +52,12 @@ model Project {
 }
 
 model Task {
-  id             String  @id @default(uuid()) @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
   name           String
   job            String
-  status         Status  @default(todo)
+  note           String?
+  natsukiReadAt  DateTime?
+  status         Status    @default(todo)
   blockingReason String?
 
   projectId       String  @db.Uuid

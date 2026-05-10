@@ -31,6 +31,8 @@ type RouteContext = {
  *                 name: "Build landing page"
  *                 job: "Implement the responsive landing page"
  *                 status: "todo"
+ *                 note: "Completed responsive layout and deployment wiring."
+ *                 natsukiReadAt: null
  *                 blockingReason: null
  *                 project:
  *                   id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
@@ -64,6 +66,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       name: true,
       job: true,
       status: true,
+      note: true,
+      natsukiReadAt: true,
       blockingReason: true,
       project: {
         select: {
@@ -113,6 +117,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *                 type: string
  *               status:
  *                 $ref: '#/components/schemas/Status'
+ *               note:
+ *                 type: string
+ *                 nullable: true
+ *               natsukiReadAt:
+ *                 type: string
+ *                 format: date-time
+ *                 nullable: true
  *               blockingReason:
  *                 type: string
  *                 nullable: true
@@ -122,6 +133,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *             name: "Build landing page"
  *             job: "Implement the responsive landing page"
  *             status: "inprogress"
+ *             note: "Completed responsive layout and deployment wiring."
+ *             natsukiReadAt: null
  *             blockingReason: null
  *     responses:
  *       200:
@@ -135,6 +148,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *                 name: "Build landing page"
  *                 job: "Implement the responsive landing page"
  *                 status: "inprogress"
+ *                 note: "Completed responsive layout and deployment wiring."
+ *                 natsukiReadAt: null
  *                 blockingReason: null
  *                 project:
  *                   id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
@@ -174,6 +189,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     name?: unknown
     job?: unknown
     status?: unknown
+    note?: unknown
+    natsukiReadAt?: unknown
     blockingReason?: unknown
   }
   const data: {
@@ -181,6 +198,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     name?: string
     job?: string
     status?: Status
+    note?: string | null
+    natsukiReadAt?: Date | null
     blockingReason?: string | null
   } = {}
 
@@ -217,6 +236,27 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
 
     data.status = updates.status as Status
+  }
+
+  if (updates.note !== undefined) {
+    if (updates.note !== null && typeof updates.note !== "string") {
+      return NextResponse.json({ statusCode: 400, error: "Invalid task note" }, { status: 400 })
+    }
+
+    data.note = updates.note?.trim() || null
+  }
+
+  if (updates.natsukiReadAt !== undefined) {
+    const readAt = parseReadMarker(updates.natsukiReadAt)
+
+    if (readAt === undefined) {
+      return NextResponse.json(
+        { statusCode: 400, error: "Invalid Natsuki read marker" },
+        { status: 400 }
+      )
+    }
+
+    data.natsukiReadAt = readAt
   }
 
   if (updates.blockingReason !== undefined) {
@@ -268,6 +308,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       name: true,
       job: true,
       status: true,
+      note: true,
+      natsukiReadAt: true,
       blockingReason: true,
       project: {
         select: {
@@ -280,6 +322,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   })
 
   return NextResponse.json({ statusCode: 200, task: updatedTask })
+}
+
+function parseReadMarker(value: unknown) {
+  if (value === true || value === "true") return new Date()
+  if (value === null || value === false || value === "" || value === "false") return null
+  if (typeof value !== "string") return undefined
+
+  const date = new Date(value)
+
+  return Number.isNaN(date.getTime()) ? undefined : date
 }
 
 /**

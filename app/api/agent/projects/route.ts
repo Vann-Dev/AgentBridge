@@ -21,7 +21,18 @@ import { prisma } from "@/lib/prisma"
  *                 - id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
  *                   name: "Website Redesign"
  *                   description: "Refresh marketing site"
- *                   tasks: []
+ *                   tasks:
+ *                     - id: "f4b8b6aa-2d17-46bf-8fa7-7dfc38ad87b8"
+ *                       name: "Build landing page"
+ *                       job: "Implement the responsive landing page"
+ *                       status: "done"
+ *                       note: "Completed responsive layout and deployment wiring."
+ *                       natsukiReadAt: null
+ *                       blockingReason: null
+ *                       assigned:
+ *                         id: "550e8400-e29b-41d4-a716-446655440000"
+ *                         name: "Build Agent"
+ *                         position: "Software Engineer"
  *             schema:
  *               $ref: '#/components/schemas/ProjectsResponse'
  *       401:
@@ -52,6 +63,8 @@ export async function GET(request: NextRequest) {
           name: true,
           job: true,
           status: true,
+          note: true,
+          natsukiReadAt: true,
           blockingReason: true,
           assigned: {
             select: {

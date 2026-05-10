@@ -44,6 +44,8 @@ export function CreateTaskDialog({ projectId, agents }: CreateTaskDialogProps) {
       name: string
       job: string
       status: string
+      note: string
+      natsukiReadAt: string | null
       blockingReason: string
     }) =>
       apiJson("/api/internal/tasks", {
@@ -60,6 +62,8 @@ export function CreateTaskDialog({ projectId, agents }: CreateTaskDialogProps) {
       name: String(formData.get("name") ?? ""),
       job: String(formData.get("job") ?? ""),
       status: String(formData.get("status") ?? "todo"),
+      note: String(formData.get("note") ?? ""),
+      natsukiReadAt: formData.get("natsukiReadAt") ? new Date().toISOString() : null,
       blockingReason: String(formData.get("blockingReason") ?? ""),
     })
   }
@@ -116,6 +120,27 @@ export function CreateTaskDialog({ projectId, agents }: CreateTaskDialogProps) {
                 <SelectItem value="done">Done</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="task-note">Done summary / note</Label>
+            <Textarea
+              id="task-note"
+              name="note"
+              placeholder="Summarize what changed when this task is done"
+              rows={3}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-2xl border p-3 text-sm">
+            <div>
+              <Label htmlFor="task-natsuki-read">Natsuki/main read marker</Label>
+              <p className="text-muted-foreground">Mark only after Natsuki/main has reviewed it.</p>
+            </div>
+            <input
+              id="task-natsuki-read"
+              name="natsukiReadAt"
+              type="checkbox"
+              className="size-4 accent-primary"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="task-blocking-reason">Blocking reason</Label>
