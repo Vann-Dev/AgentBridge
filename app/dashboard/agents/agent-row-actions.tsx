@@ -42,23 +42,8 @@ export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agents", companyId] }),
   })
-  const tokenMutation = useMutation({
-    mutationFn: () =>
-      apiJson<{ token: string }>(`/api/internal/agents/${agent.id}/token`, {
-        method: "POST",
-      }),
-  })
-
   return (
     <div className="flex justify-end gap-2">
-      {tokenMutation.data?.token ? (
-        <div className="max-w-80 rounded-2xl border border-border bg-muted p-3 text-left">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            New token
-          </p>
-          <p className="mt-2 break-all font-mono text-xs">{tokenMutation.data.token}</p>
-        </div>
-      ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button size="icon-sm" variant="ghost" type="button">
@@ -69,13 +54,6 @@ export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>{agent.name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <form action={() => tokenMutation.mutate()}>
-              <button className="w-full text-left" disabled={tokenMutation.isPending} type="submit">
-                {tokenMutation.isPending ? "Regenerating..." : "Regenerate token"}
-              </button>
-            </form>
-          </DropdownMenuItem>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <DropdownMenuItem variant="destructive" onSelect={(event) => event.preventDefault()}>
@@ -86,7 +64,7 @@ export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete {agent.name}?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This removes the agent and invalidates its bearer token. This cannot be undone.
+                  This removes the agent. The company bearer token remains valid for other agents.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               {deleteMutation.error ? (
@@ -108,9 +86,6 @@ export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
           </AlertDialog>
         </DropdownMenuContent>
       </DropdownMenu>
-      {tokenMutation.error ? (
-        <p className="text-sm text-destructive">{tokenMutation.error.message}</p>
-      ) : null}
     </div>
   )
 }

@@ -28,6 +28,7 @@ import { AgentRowActions } from "./agent-row-actions"
 
 type AgentRow = {
   id: string
+  AgentId: string
   name: string
   description: string
   position: string
@@ -50,11 +51,12 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
   const createMutation = useMutation({
     mutationFn: (payload: {
       companyId: string
+      AgentId: string
       name: string
       description: string
       position: string
     }) =>
-      apiJson<{ token: string }>("/api/internal/agents", {
+      apiJson<{ agent: AgentRow }>("/api/internal/agents", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -66,6 +68,7 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
 
     createMutation.mutate({
       companyId,
+      AgentId: String(formData.get("AgentId") ?? ""),
       name: String(formData.get("name") ?? ""),
       description: String(formData.get("description") ?? ""),
       position: String(formData.get("position") ?? ""),
@@ -92,11 +95,15 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
             <DialogHeader>
               <DialogTitle className="text-2xl">Create agent</DialogTitle>
               <DialogDescription>
-                A bearer token is generated once. Store it somewhere safe.
+                The company bearer token is shared. Enter the AgentId this agent will send in the AgentId header.
               </DialogDescription>
             </DialogHeader>
             <form action={action} className="space-y-4">
               <input name="companyId" type="hidden" value={companyId ?? ""} />
+              <div className="space-y-2">
+                <Label htmlFor="agent-agent-id">AgentId</Label>
+                <Input id="agent-agent-id" name="AgentId" required />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="agent-name">Name</Label>
                 <Input id="agent-name" name="name" required />
@@ -112,14 +119,6 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
               {createMutation.error ? (
                 <p className="text-sm text-destructive">{createMutation.error.message}</p>
               ) : null}
-              {createMutation.data?.token ? (
-                <div className="rounded-2xl border border-border bg-muted p-3">
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Bearer token
-                  </p>
-                  <p className="mt-2 break-all font-mono text-xs">{createMutation.data.token}</p>
-                </div>
-              ) : null}
               <Button disabled={createMutation.isPending || !companyId} type="submit">
                 {createMutation.isPending ? "Creating..." : "Create agent"}
               </Button>
@@ -133,6 +132,7 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
           <TableHeader className="bg-muted text-xs uppercase tracking-[0.16em] text-muted-foreground">
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>AgentId</TableHead>
               <TableHead>Position</TableHead>
               <TableHead>Description</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -143,6 +143,9 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
               currentAgents.map((agent) => (
                 <TableRow key={agent.id}>
                   <TableCell className="font-medium">{agent.name}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {agent.AgentId}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{agent.position}</TableCell>
                   <TableCell className="text-muted-foreground">{agent.description}</TableCell>
                   <TableCell className="text-right">
@@ -152,7 +155,7 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
               ))
             ) : (
               <TableRow>
-                <TableCell className="py-8 text-center text-muted-foreground" colSpan={4}>
+                <TableCell className="py-8 text-center text-muted-foreground" colSpan={5}>
                   No agents yet.
                 </TableCell>
               </TableRow>

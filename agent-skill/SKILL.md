@@ -4,7 +4,11 @@ description: Agent Ops is the skill of managing and coordinating multiple agents
 metadata:
   {
     "openclaw":
-      { "always": true, "requires": { "env": ["AGENTBRIDGE_AGENT_TOKEN"] } },
+      {
+        "always": true,
+        "requires":
+          { "env": ["AGENTBRIDGE_COMPANY_TOKEN", "AGENTBRIDGE_BASE_URL"] },
+      },
   }
 ---
 
@@ -15,22 +19,26 @@ Use this skill when acting as an external agent that needs to read or update wor
 ## Core Rules
 
 - All agent API paths are under `/api/agent`.
-- Authenticate every request with `Authorization: Bearer <agent-token>`.
+- Authenticate every request with the company token: `Authorization: Bearer <company-token>`.
+- Identify the acting agent on every request with `AgentId: <your-agent-id>`.
+- Always use your own known agent id as the `AgentId` header value.
+- `AgentId` is the agent's unique API identifier, not necessarily the database primary key `id`.
 - Never log, print, store, or expose the bearer token.
-- Treat `bearerTokenHash` as private; the API must never return it and agents must not ask for it.
+- Treat `Company.bearerTokenHash` as private; the API must never return it and agents must not ask for it.
 - Read the `statusCode` field in every JSON response. It should match the HTTP status.
 - Error shape is `{ "statusCode": number, "error": string }`.
 - Valid task statuses are `todo`, `inprogress`, `done`, and `blocked`.
 - `GET /api/agent/tasks` lists only tasks assigned to the current agent.
 - Task detail, update, and delete endpoints are company-scoped: any authenticated agent can read, update, reassign, or delete tasks in the current company.
-- Agent and project endpoints are company-scoped: they only read or mutate records from the current agent's company.
-- Creating an agent returns a one-time `token`; handle it as a secret and never expose it.
+- Agent and project endpoints are company-scoped: they only read or mutate records from the authenticated company.
+- Creating an agent requires a caller-provided unique `AgentId`; it does not create or return a bearer token.
 
 ## Base Request Shape
 
 ```bash
 curl "$AGENTBRIDGE_BASE_URL/api/agent" \
-  -H "Authorization: Bearer $AGENTBRIDGE_AGENT_TOKEN" \
+  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
+  -H "AgentId: <your-agent-id>" \
   -H "Accept: application/json"
 ```
 
@@ -51,6 +59,7 @@ Response:
   "statusCode": 200,
   "agent": {
     "id": "uuid",
+    "AgentId": "agent-api-id",
     "name": "Agent Name",
     "description": "Agent description",
     "position": "Agent role",
@@ -78,6 +87,7 @@ Response:
   "agents": [
     {
       "id": "uuid",
+      "AgentId": "agent-api-id",
       "name": "Agent Name",
       "description": "Agent description",
       "position": "Agent role",
@@ -93,10 +103,11 @@ Response:
 
 `POST /api/agent/agents`
 
-Creates an agent in the current agent's company and returns a one-time bearer token for the new agent.
+Creates an agent in the current company. The caller must provide the unique `AgentId` that the new agent will send in the `AgentId` request header. No bearer token is created or returned; agents share the company bearer token.
 
 Body fields:
 
+- `AgentId`: required unique non-empty string; trimmed.
 - `name`: required non-empty string; trimmed.
 - `position`: required non-empty string; trimmed.
 - `description`: optional string; trimmed, defaults to `""`.
@@ -105,9 +116,10 @@ Example:
 
 ```bash
 curl -X POST "$AGENTBRIDGE_BASE_URL/api/agent/agents" \
-  -H "Authorization: Bearer $AGENTBRIDGE_AGENT_TOKEN" \
+  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
+  -H "AgentId: <your-agent-id>" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Review Agent","description":"Reviews completed implementation tasks","position":"Code Reviewer"}'
+  -d '{"AgentId":"review-agent-01","name":"Review Agent","description":"Reviews completed implementation tasks","position":"Code Reviewer"}'
 ```
 
 Response:
@@ -117,12 +129,12 @@ Response:
   "statusCode": 201,
   "agent": {
     "id": "uuid",
+    "AgentId": "review-agent-01",
     "name": "Review Agent",
     "description": "Reviews completed implementation tasks",
     "position": "Code Reviewer",
     "companyId": "uuid"
-  },
-  "token": "agt_one_time_token"
+  }
 }
 ```
 
@@ -139,6 +151,7 @@ Response:
   "statusCode": 200,
   "agent": {
     "id": "uuid",
+    "AgentId": "agent-api-id",
     "name": "Build Agent",
     "description": "Handles implementation tasks",
     "position": "Software Engineer",
@@ -170,6 +183,7 @@ Response:
   "statusCode": 200,
   "agent": {
     "id": "uuid",
+    "AgentId": "agent-api-id",
     "name": "Senior Build Agent",
     "description": "Handles implementation tasks",
     "position": "Senior Software Engineer",
@@ -344,10 +358,12 @@ Examples:
 
 ```bash
 curl "$AGENTBRIDGE_BASE_URL/api/agent/tasks" \
-  -H "Authorization: Bearer $AGENTBRIDGE_AGENT_TOKEN"
+  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
+  -H "AgentId: <your-agent-id>"
 
 curl "$AGENTBRIDGE_BASE_URL/api/agent/tasks?status=blocked" \
-  -H "Authorization: Bearer $AGENTBRIDGE_AGENT_TOKEN"
+  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
+  -H "AgentId: <your-agent-id>"
 ```
 
 Response:
@@ -395,7 +411,8 @@ Example:
 
 ```bash
 curl -X POST "$AGENTBRIDGE_BASE_URL/api/agent/tasks" \
-  -H "Authorization: Bearer $AGENTBRIDGE_AGENT_TOKEN" \
+  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
+  -H "AgentId: <your-agent-id>" \
   -H "Content-Type: application/json" \
   -d '{"projectId":"'$PROJECT_ID'","assignedAgentId":"'$AGENT_ID'","name":"Build landing page","job":"Implement the responsive landing page","status":"todo","blockingReason":null}'
 ```
@@ -472,17 +489,20 @@ Examples:
 
 ```bash
 curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
-  -H "Authorization: Bearer $AGENTBRIDGE_AGENT_TOKEN" \
+  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
+  -H "AgentId: <your-agent-id>" \
   -H "Content-Type: application/json" \
   -d '{"status":"inprogress"}'
 
 curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
-  -H "Authorization: Bearer $AGENTBRIDGE_AGENT_TOKEN" \
+  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
+  -H "AgentId: <your-agent-id>" \
   -H "Content-Type: application/json" \
   -d '{"status":"blocked","blockingReason":"Need API credentials from project owner"}'
 
 curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
-  -H "Authorization: Bearer $AGENTBRIDGE_AGENT_TOKEN" \
+  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
+  -H "AgentId: <your-agent-id>" \
   -H "Content-Type: application/json" \
   -d '{"status":"done","blockingReason":null}'
 ```
@@ -527,13 +547,13 @@ Response:
 Common responses:
 
 - `400`: bad query, invalid JSON body, invalid status, invalid blocking reason, or empty update body.
-- `401`: missing, malformed, or invalid bearer token.
+- `401`: missing, malformed, or invalid bearer token or missing/invalid `AgentId` header.
 - `404`: company-scoped record not found.
 
 Known error messages:
 
 - `Unauthorized`
-- `Name and position are required.`
+- `AgentId, name, and position are required.`
 - `Name must be a non-empty string.`
 - `Description must be a string.`
 - `Position must be a non-empty string.`

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
+import { generateCompanyBearerToken } from "@/lib/token"
 
 export async function GET() {
   const { session, response } = await requireInternalSession()
@@ -11,6 +12,7 @@ export async function GET() {
   const companies = await prisma.company.findMany({
     where: { userId: session.userId },
     orderBy: { name: "asc" },
+    omit: { bearerTokenHash: true },
   })
 
   return NextResponse.json({ statusCode: 200, companies })
@@ -33,13 +35,15 @@ export async function POST(request: Request) {
     return badRequest("Company name is required.")
   }
 
+  const { token, bearerTokenHash } = generateCompanyBearerToken()
   const company = await prisma.company.create({
     data: {
       name,
       description,
       userId: session.userId,
+      bearerTokenHash,
     },
   })
 
-  return NextResponse.json({ statusCode: 201, company }, { status: 201 })
+  return NextResponse.json({ statusCode: 201, company, token }, { status: 201 })
 }

@@ -32,6 +32,7 @@ const openApiDocument = swaggerJsdoc({
         bearerAuth: {
           type: "http",
           scheme: "bearer",
+          description: "Company-level bearer token.",
         },
       },
       schemas: {
@@ -51,6 +52,7 @@ const openApiDocument = swaggerJsdoc({
           type: "object",
           properties: {
             id: { type: "string", format: "uuid" },
+            AgentId: { type: "string", format: "uuid" },
             name: { type: "string" },
             description: { type: "string" },
           },
@@ -65,12 +67,13 @@ const openApiDocument = swaggerJsdoc({
             position: { type: "string" },
             companyId: { type: "string", format: "uuid" },
           },
-          required: ["id", "name", "description", "position", "companyId"],
+          required: ["id", "AgentId", "name", "description", "position", "companyId"],
         },
         CompanyAgent: {
           type: "object",
           properties: {
             id: { type: "string", format: "uuid" },
+            AgentId: { type: "string", format: "uuid" },
             name: { type: "string" },
             description: { type: "string" },
             position: { type: "string" },
@@ -81,7 +84,7 @@ const openApiDocument = swaggerJsdoc({
               required: ["tasks"],
             },
           },
-          required: ["id", "name", "description", "position", "_count"],
+          required: ["id", "AgentId", "name", "description", "position", "_count"],
         },
         Task: {
           type: "object",
@@ -188,9 +191,8 @@ const openApiDocument = swaggerJsdoc({
           properties: {
             statusCode: { type: "integer", enum: [201] },
             agent: { $ref: "#/components/schemas/Agent" },
-            token: { type: "string" },
           },
-          required: ["statusCode", "agent", "token"],
+          required: ["statusCode", "agent"],
         },
         CompanyAgentResponse: {
           type: "object",
@@ -322,6 +324,12 @@ const openApiDocument = swaggerJsdoc({
           schema: { type: "string", format: "uuid" },
         },
         AgentId: {
+          name: "AgentId",
+          in: "header",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+        PathAgentId: {
           name: "agentId",
           in: "path",
           required: true,

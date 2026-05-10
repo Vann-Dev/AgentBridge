@@ -34,9 +34,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 })
   }
 
+  const { companyId } = agent
+
   const projects = await prisma.project.findMany({
     where: {
-      companyId: agent.companyId,
+      companyId,
     },
     orderBy: { name: "asc" },
     select: {

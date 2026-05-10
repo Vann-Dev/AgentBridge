@@ -1,16 +1,7 @@
-import { createHash, randomBytes } from "node:crypto"
-
 import { NextRequest, NextResponse } from "next/server"
 
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
-
-function generateToken() {
-  const token = `agt_${randomBytes(32).toString("base64url")}`
-  const bearerTokenHash = createHash("sha256").update(token).digest("hex")
-
-  return { token, bearerTokenHash }
-}
 
 export async function GET(request: NextRequest) {
   const { session, response } = await requireInternalSession()
@@ -31,6 +22,7 @@ export async function GET(request: NextRequest) {
     orderBy: { name: "asc" },
     select: {
       id: true,
+      AgentId: true,
       name: true,
       description: true,
       position: true,
@@ -48,18 +40,20 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as {
     companyId?: unknown
+    AgentId?: unknown
     name?: unknown
     description?: unknown
     position?: unknown
   } | null
 
   const companyId = typeof body?.companyId === "string" ? body.companyId : ""
+  const AgentId = typeof body?.AgentId === "string" ? body.AgentId.trim() : ""
   const name = typeof body?.name === "string" ? body.name.trim() : ""
   const description = typeof body?.description === "string" ? body.description.trim() : ""
   const position = typeof body?.position === "string" ? body.position.trim() : ""
 
-  if (!companyId || !name || !position) {
-    return badRequest("Company, name, and position are required.")
+  if (!companyId || !AgentId || !name || !position) {
+    return badRequest("Company, AgentId, name, and position are required.")
   }
 
   const company = await prisma.company.findFirst({
@@ -70,17 +64,17 @@ export async function POST(request: Request) {
     return badRequest("Company not found.")
   }
 
-  const { token, bearerTokenHash } = generateToken()
   const agent = await prisma.agent.create({
     data: {
       companyId,
+      AgentId,
       name,
       description,
       position,
-      bearerTokenHash,
     },
     select: {
       id: true,
+      AgentId: true,
       name: true,
       description: true,
       position: true,
@@ -88,5 +82,5 @@ export async function POST(request: Request) {
     },
   })
 
-  return NextResponse.json({ statusCode: 201, agent, token }, { status: 201 })
+  return NextResponse.json({ statusCode: 201, agent }, { status: 201 })
 }

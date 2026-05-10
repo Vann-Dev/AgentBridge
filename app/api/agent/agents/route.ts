@@ -1,16 +1,7 @@
-import { createHash, randomBytes } from "node:crypto"
-
 import { NextRequest, NextResponse } from "next/server"
 
 import { agentAuth } from "@/lib/agent-auth"
 import { prisma } from "@/lib/prisma"
-
-function generateToken() {
-  const token = `agt_${randomBytes(32).toString("base64url")}`
-  const bearerTokenHash = createHash("sha256").update(token).digest("hex")
-
-  return { token, bearerTokenHash }
-}
 
 /**
  * @openapi
@@ -50,6 +41,7 @@ export async function GET(request: NextRequest) {
     orderBy: { name: "asc" },
     select: {
       id: true,
+      AgentId: true,
       name: true,
       description: true,
       position: true,
@@ -68,7 +60,7 @@ export async function GET(request: NextRequest) {
  *   post:
  *     tags:
  *       - Agents
- *     summary: Create agent in current company
+   *     summary: Create agent in current company
  *     requestBody:
  *       required: true
  *       content:
@@ -89,7 +81,7 @@ export async function GET(request: NextRequest) {
  *             position: "Code Reviewer"
  *     responses:
  *       201:
- *         description: Created agent and one-time bearer token
+   *         description: Created agent
  *         content:
  *           application/json:
  *             example:
@@ -100,7 +92,6 @@ export async function GET(request: NextRequest) {
  *                 description: "Reviews completed implementation tasks"
  *                 position: "Code Reviewer"
  *                 companyId: "7b5f4a6e-0c4a-4bdb-bc73-8b4d7e8a22a1"
- *               token: "agt_example_token"
  *             schema:
  *               $ref: '#/components/schemas/AgentCreatedResponse'
  *       400:
@@ -115,34 +106,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 })
   }
 
+  const { companyId } = currentAgent
+
   const body = (await request.json().catch(() => null)) as {
+    AgentId?: unknown
     name?: unknown
     description?: unknown
     position?: unknown
   } | null
 
+  const AgentId = typeof body?.AgentId === "string" ? body.AgentId.trim() : ""
   const name = typeof body?.name === "string" ? body.name.trim() : ""
   const description = typeof body?.description === "string" ? body.description.trim() : ""
   const position = typeof body?.position === "string" ? body.position.trim() : ""
 
-  if (!name || !position) {
+  if (!AgentId || !name || !position) {
     return NextResponse.json(
-      { statusCode: 400, error: "Name and position are required." },
+      { statusCode: 400, error: "AgentId, name, and position are required." },
       { status: 400 }
     )
   }
 
-  const { token, bearerTokenHash } = generateToken()
   const agent = await prisma.agent.create({
     data: {
-      companyId: currentAgent.companyId,
+      companyId,
+      AgentId,
       name,
       description,
       position,
-      bearerTokenHash,
     },
     select: {
       id: true,
+      AgentId: true,
       name: true,
       description: true,
       position: true,
@@ -150,5 +145,5 @@ export async function POST(request: NextRequest) {
     },
   })
 
-  return NextResponse.json({ statusCode: 201, agent, token }, { status: 201 })
+  return NextResponse.json({ statusCode: 201, agent }, { status: 201 })
 }

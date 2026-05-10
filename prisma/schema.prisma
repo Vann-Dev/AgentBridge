@@ -16,9 +16,10 @@ enum Status {
 }
 
 model Company {
-  id          String    @id @default(uuid()) @db.Uuid
-  name        String
-  description String
+  id              String @id @default(uuid()) @db.Uuid
+  name            String
+  description     String
+  bearerTokenHash String @unique
 
   userId   String @db.Uuid
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -67,11 +68,11 @@ model Task {
 }
 
 model Agent {
-  id              String @id @default(uuid()) @db.Uuid
-  name            String
-  description     String
-  position        String
-  bearerTokenHash String @unique
+  id          String @id @default(uuid()) @db.Uuid
+  AgentId     String @unique
+  name        String
+  description String
+  position    String
 
   tasks     Task[]
   companyId String  @db.Uuid

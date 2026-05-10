@@ -13,6 +13,7 @@ export async function getDashboardContext(companyId?: string) {
   const companies = await prisma.company.findMany({
     where: { userId: session.userId },
     orderBy: { name: "asc" },
+    omit: { bearerTokenHash: true },
   })
   const activeCompany =
     companies.find((company) => company.id === companyId) ?? companies[0] ?? null

@@ -26,14 +26,16 @@ export function CreateCompanyDialog({ defaultOpen = false }: CreateCompanyDialog
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: (payload: { name: string; description: string }) =>
-      apiJson<{ company: { id: string } }>("/api/internal/companies", {
+      apiJson<{ company: { id: string }; token: string }>("/api/internal/companies", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["companies"] })
-      router.push(`/dashboard?company=${data.company.id}`)
-      router.refresh()
+      if (!data.token) {
+        router.push(`/dashboard?company=${data.company.id}`)
+        router.refresh()
+      }
     },
   })
 
@@ -68,9 +70,32 @@ export function CreateCompanyDialog({ defaultOpen = false }: CreateCompanyDialog
             <Textarea id="company-description" name="description" rows={4} />
           </div>
           {mutation.error ? <p className="text-sm text-destructive">{mutation.error.message}</p> : null}
+          {mutation.data?.token ? (
+            <div className="rounded-2xl border border-border bg-muted p-3">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                Company bearer token
+              </p>
+              <p className="mt-2 break-all font-mono text-xs">{mutation.data.token}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Store this now. You can generate a new token later from company settings.
+              </p>
+            </div>
+          ) : null}
           <Button disabled={mutation.isPending} type="submit">
             {mutation.isPending ? "Creating..." : "Create company"}
           </Button>
+          {mutation.data?.company.id ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                router.push(`/dashboard?company=${mutation.data.company.id}`)
+                router.refresh()
+              }}
+            >
+              Continue
+            </Button>
+          ) : null}
         </form>
       </DialogContent>
     </Dialog>

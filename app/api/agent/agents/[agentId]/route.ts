@@ -21,7 +21,7 @@ type AgentUpdateData = {
  *       - Agents
  *     summary: Get agent in current company
  *     parameters:
- *       - $ref: '#/components/parameters/AgentId'
+ *       - $ref: '#/components/parameters/PathAgentId'
  *     responses:
  *       200:
  *         description: Agent in current company
@@ -59,6 +59,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     },
     select: {
       id: true,
+      AgentId: true,
       name: true,
       description: true,
       position: true,
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *       - Agents
  *     summary: Update agent in current company
  *     parameters:
- *       - $ref: '#/components/parameters/AgentId'
+ *       - $ref: '#/components/parameters/PathAgentId'
  *     requestBody:
  *       required: true
  *       content:
@@ -194,6 +195,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     data,
     select: {
       id: true,
+      AgentId: true,
       name: true,
       description: true,
       position: true,
@@ -212,7 +214,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
  *       - Agents
  *     summary: Delete agent in current company
  *     parameters:
- *       - $ref: '#/components/parameters/AgentId'
+ *       - $ref: '#/components/parameters/PathAgentId'
  *     responses:
  *       200:
  *         description: Deleted agent id

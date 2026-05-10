@@ -56,6 +56,12 @@ export function CompanySettingsForm({ company }: CompanySettingsFormProps) {
       router.refresh()
     },
   })
+  const tokenMutation = useMutation({
+    mutationFn: () =>
+      apiJson<{ token: string }>(`/api/internal/companies/${company.id}`, {
+        method: "POST",
+      }),
+  })
 
   function updateCompany(formData: FormData) {
     updateMutation.mutate({
@@ -96,6 +102,33 @@ export function CompanySettingsForm({ company }: CompanySettingsFormProps) {
           {updateMutation.isPending ? "Saving..." : "Save changes"}
         </Button>
       </form>
+
+      <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+        <h2 className="text-2xl font-semibold tracking-tight">Company bearer token</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          Generate one company-level token for API access. Requests must also send the agent&apos;s
+          unique AgentId in the AgentId header.
+        </p>
+        {tokenMutation.data?.token ? (
+          <div className="mt-4 rounded-2xl border border-border bg-muted p-3">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              New company bearer token
+            </p>
+            <p className="mt-2 break-all font-mono text-xs">{tokenMutation.data.token}</p>
+          </div>
+        ) : null}
+        {tokenMutation.error ? (
+          <p className="mt-4 text-sm text-destructive">{tokenMutation.error.message}</p>
+        ) : null}
+        <Button
+          className="mt-5"
+          disabled={tokenMutation.isPending}
+          type="button"
+          onClick={() => tokenMutation.mutate()}
+        >
+          {tokenMutation.isPending ? "Generating..." : "Generate company token"}
+        </Button>
+      </div>
 
       <div className="rounded-3xl border border-destructive/30 bg-card p-6 shadow-sm">
         <h2 className="text-2xl font-semibold tracking-tight">Delete company</h2>
