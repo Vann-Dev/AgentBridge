@@ -94,10 +94,14 @@ const openApiDocument = swaggerJsdoc({
             job: { type: "string" },
             status: { $ref: "#/components/schemas/Status" },
             note: { type: "string", nullable: true },
-            natsukiReadAt: { type: "string", format: "date-time", nullable: true },
+            readBy: {
+              type: "array",
+              items: { type: "string" },
+              description: "AgentId values that have read this task in its current status.",
+            },
             blockingReason: { type: "string", nullable: true },
           },
-          required: ["id", "name", "job", "status", "note", "natsukiReadAt", "blockingReason"],
+          required: ["id", "name", "job", "status", "note", "readBy", "blockingReason"],
         },
         TaskWithProject: {
           allOf: [

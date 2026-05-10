@@ -45,7 +45,7 @@ export function CreateTaskDialog({ projectId, agents }: CreateTaskDialogProps) {
       job: string
       status: string
       note: string
-      natsukiReadAt: string | null
+      readByAgentIds: string[]
       blockingReason: string
     }) =>
       apiJson("/api/internal/tasks", {
@@ -63,7 +63,7 @@ export function CreateTaskDialog({ projectId, agents }: CreateTaskDialogProps) {
       job: String(formData.get("job") ?? ""),
       status: String(formData.get("status") ?? "todo"),
       note: String(formData.get("note") ?? ""),
-      natsukiReadAt: formData.get("natsukiReadAt") ? new Date().toISOString() : null,
+      readByAgentIds: formData.getAll("readByAgentIds").map(String),
       blockingReason: String(formData.get("blockingReason") ?? ""),
     })
   }
@@ -130,17 +130,27 @@ export function CreateTaskDialog({ projectId, agents }: CreateTaskDialogProps) {
               rows={3}
             />
           </div>
-          <div className="flex items-center justify-between gap-3 rounded-2xl border p-3 text-sm">
+          <div className="space-y-3 rounded-2xl border p-3 text-sm">
             <div>
-              <Label htmlFor="task-natsuki-read">Natsuki/main read marker</Label>
-              <p className="text-muted-foreground">Mark only after Natsuki/main has reviewed it.</p>
+              <Label>Read markers for initial status</Label>
+              <p className="text-muted-foreground">Mark only agents who have already reviewed this task in its initial status.</p>
             </div>
-            <input
-              id="task-natsuki-read"
-              name="natsukiReadAt"
-              type="checkbox"
-              className="size-4 accent-primary"
-            />
+            <div className="grid gap-2 sm:grid-cols-2">
+              {agents.map((agent) => (
+                <label key={agent.id} className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
+                  <input
+                    name="readByAgentIds"
+                    type="checkbox"
+                    value={agent.id}
+                    className="size-4 accent-primary"
+                  />
+                  <span>
+                    <span className="font-medium">{agent.name}</span>
+                    <span className="block text-xs text-muted-foreground">{agent.position}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="task-blocking-reason">Blocking reason</Label>

@@ -41,6 +41,18 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       tasks: {
         include: {
           assigned: true,
+          readMarkers: {
+            include: {
+              agent: {
+                select: {
+                  id: true,
+                  AgentId: true,
+                  name: true,
+                },
+              },
+            },
+            orderBy: { readAt: "desc" },
+          },
         },
         orderBy: { name: "asc" },
       },

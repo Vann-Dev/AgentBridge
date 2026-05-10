@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
 import { agentAuth } from "@/lib/agent-auth"
+import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
 import { prisma } from "@/lib/prisma"
 
 const statuses = Object.values(Status)
@@ -32,7 +33,7 @@ const statuses = Object.values(Status)
  *                   job: "Implement the responsive landing page"
  *                   status: "todo"
  *                   note: null
- *                   natsukiReadAt: null
+ *                   readBy: []
  *                   blockingReason: null
  *                   project:
  *                     id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
@@ -73,7 +74,21 @@ export async function GET(request: NextRequest) {
       job: true,
       status: true,
       note: true,
-      natsukiReadAt: true,
+      readMarkers: {
+        select: {
+          agentId: true,
+          status: true,
+          readAt: true,
+          agent: {
+            select: {
+              id: true,
+              AgentId: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { readAt: "desc" },
+      },
       blockingReason: true,
       project: {
         select: {
@@ -91,7 +106,7 @@ export async function GET(request: NextRequest) {
     },
   })
 
-  return NextResponse.json({ statusCode: 200, tasks })
+  return NextResponse.json({ statusCode: 200, tasks: tasks.map(serializeTaskReadMarkers) })
 }
 
 /**
@@ -123,7 +138,7 @@ export async function GET(request: NextRequest) {
  *               note:
  *                 type: string
  *                 nullable: true
- *               natsukiReadAt:
+ *               readBy:
  *                 type: string
  *                 format: date-time
  *                 nullable: true
@@ -138,7 +153,7 @@ export async function GET(request: NextRequest) {
  *             job: "Implement the responsive landing page"
  *             status: "todo"
  *             note: "Completed responsive layout and deployment wiring."
- *             natsukiReadAt: null
+ *             readBy: []
  *             blockingReason: null
  *     responses:
  *       201:
@@ -153,7 +168,7 @@ export async function GET(request: NextRequest) {
  *                 job: "Implement the responsive landing page"
  *                 status: "todo"
  *                 note: "Completed responsive layout and deployment wiring."
- *                 natsukiReadAt: null
+ *                 readBy: []
  *                 blockingReason: null
  *                 assigned:
  *                   id: "550e8400-e29b-41d4-a716-446655440000"
@@ -180,7 +195,7 @@ export async function POST(request: NextRequest) {
     job?: unknown
     status?: unknown
     note?: unknown
-    natsukiReadAt?: unknown
+    readBy?: unknown
     blockingReason?: unknown
   } | null
 
@@ -190,15 +205,12 @@ export async function POST(request: NextRequest) {
   const job = typeof body?.job === "string" ? body.job.trim() : ""
   const status = typeof body?.status === "string" ? body.status : "todo"
   const note = typeof body?.note === "string" ? body.note.trim() : ""
-  const natsukiReadAt = parseReadMarker(body?.natsukiReadAt)
+  const readBy = parseReadByAgentIds(body?.readBy)
   const blockingReason =
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : ""
 
-  if (natsukiReadAt === undefined) {
-    return NextResponse.json(
-      { statusCode: 400, error: "Invalid Natsuki read marker" },
-      { status: 400 }
-    )
+  if (!readBy) {
+    return NextResponse.json({ statusCode: 400, error: "Invalid read markers" }, { status: 400 })
   }
 
   if (!projectId || !assignedAgentId || !name || !job) {
@@ -218,7 +230,17 @@ export async function POST(request: NextRequest) {
       companyId: agent.companyId,
       company: { agents: { some: { id: assignedAgentId } } },
     },
-    select: { id: true },
+    select: {
+      id: true,
+      company: {
+        select: {
+          agents: {
+            where: { AgentId: { in: readBy } },
+            select: { id: true, AgentId: true },
+          },
+        },
+      },
+    },
   })
 
   if (!project) {
@@ -226,6 +248,10 @@ export async function POST(request: NextRequest) {
       { statusCode: 400, error: "Project or agent not found." },
       { status: 400 }
     )
+  }
+
+  if (project.company.agents.length !== readBy.length) {
+    return NextResponse.json({ statusCode: 400, error: "Read marker agent not found" }, { status: 400 })
   }
 
   const task = await prisma.task.create({
@@ -236,8 +262,13 @@ export async function POST(request: NextRequest) {
       job,
       status: status as Status,
       note: note || null,
-      natsukiReadAt,
       blockingReason: blockingReason || null,
+      readMarkers: {
+        create: project.company.agents.map((readAgent) => ({
+          agentId: readAgent.id,
+          status: status as Status,
+        })),
+      },
     },
     include: {
       assigned: {
@@ -247,19 +278,32 @@ export async function POST(request: NextRequest) {
           position: true,
         },
       },
+      readMarkers: {
+        select: {
+          agentId: true,
+          status: true,
+          readAt: true,
+          agent: {
+            select: {
+              id: true,
+              AgentId: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { readAt: "desc" },
+      },
     },
   })
 
-  return NextResponse.json({ statusCode: 201, task }, { status: 201 })
+  return NextResponse.json({ statusCode: 201, task: serializeTaskReadMarkers(task) }, { status: 201 })
 }
 
-function parseReadMarker(value: unknown) {
-  if (value === undefined) return null
-  if (value === true || value === "true") return new Date()
-  if (value === null || value === false || value === "" || value === "false") return null
-  if (typeof value !== "string") return undefined
+function parseReadByAgentIds(value: unknown) {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return null
 
-  const date = new Date(value)
+  const agentIds = value.filter((item): item is string => typeof item === "string" && Boolean(item))
 
-  return Number.isNaN(date.getTime()) ? undefined : date
+  return agentIds.length === value.length ? Array.from(new Set(agentIds)) : null
 }
