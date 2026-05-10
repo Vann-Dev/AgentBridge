@@ -101,6 +101,7 @@ const columns = [
 export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<TaskCard | null>(null)
+  const [editingStatus, setEditingStatus] = useState<Status | null>(null)
   const [deletingTask, setDeletingTask] = useState<TaskCard | null>(null)
   const queryClient = useQueryClient()
   const projectQuery = useQuery({
@@ -130,7 +131,13 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                 project: {
                   ...current.project,
                   tasks: current.project.tasks.map((task) =>
-                    task.id === taskId ? { ...task, status, readMarkers: [] } : task
+                    task.id === taskId
+                      ? {
+                          ...task,
+                          status,
+                          readMarkers: task.readMarkers.filter((marker) => marker.status !== status),
+                        }
+                      : task
                   ),
                 },
               }
@@ -168,6 +175,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
       }),
     onSuccess: () => {
       setEditingTask(null)
+      setEditingStatus(null)
       queryClient.invalidateQueries({ queryKey: ["project", projectId] })
     },
   })
@@ -287,7 +295,12 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                         </Card>
                       </ContextMenuTrigger>
                       <ContextMenuContent>
-                        <ContextMenuItem onSelect={() => setEditingTask(task)}>
+                        <ContextMenuItem
+                          onSelect={() => {
+                            setEditingTask(task)
+                            setEditingStatus(task.status)
+                          }}
+                        >
                           Update task
                         </ContextMenuItem>
                         <ContextMenuSeparator />
@@ -310,7 +323,15 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
           )
         })}
       </div>
-      <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
+      <Dialog
+        open={!!editingTask}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingTask(null)
+            setEditingStatus(null)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-2xl">Update task</DialogTitle>
@@ -343,7 +364,11 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select name="status" defaultValue={editingTask.status}>
+                <Select
+                  name="status"
+                  value={editingStatus ?? editingTask.status}
+                  onValueChange={(value) => setEditingStatus(value as Status)}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
@@ -365,7 +390,18 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                   rows={3}
                 />
               </div>
-              <ReadMarkerFields agents={agents} task={editingTask} />
+              {editingStatus === editingTask.status ? (
+                <ReadMarkerFields agents={agents} task={editingTask} />
+              ) : (
+                <div className="space-y-1 rounded-2xl border p-3 text-sm text-muted-foreground">
+                  <Label>Read markers for current status</Label>
+                  <p>
+                    Status changes start unread for the destination status and keep other status read
+                    markers intact. Save first, then reopen this task to edit read markers for the new
+                    status.
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="edit-task-blocking-reason">Blocking reason</Label>
                 <Textarea

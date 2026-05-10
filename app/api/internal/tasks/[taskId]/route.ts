@@ -106,7 +106,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   }
 
   const nextStatus = (status as Status | undefined) ?? task.status
+  const statusChanged = nextStatus !== task.status
   const noteChanged = note !== undefined && (note || null) !== task.note
+  const shouldClearNextStatusReads = !hasReadByAgentIds && (statusChanged || noteChanged)
   const updatedTask = await prisma.$transaction(async (tx) => {
     if (hasReadByAgentIds) {
       await tx.taskReadMarker.deleteMany({
@@ -140,7 +142,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       }
     }
 
-    if (noteChanged && !hasReadByAgentIds) {
+    if (shouldClearNextStatusReads) {
       await tx.taskReadMarker.deleteMany({ where: { taskId: task.id, status: nextStatus } })
     }
 
