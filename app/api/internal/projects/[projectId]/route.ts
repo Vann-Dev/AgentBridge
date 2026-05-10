@@ -7,6 +7,40 @@ type RouteContext = {
   params: Promise<{ projectId: string }>
 }
 
+export async function GET(_request: Request, { params }: RouteContext) {
+  const { session, response } = await requireInternalSession()
+
+  if (response) return response
+
+  const { projectId } = await params
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      company: { userId: session.userId },
+    },
+    include: {
+      tasks: {
+        include: {
+          assigned: {
+            select: {
+              id: true,
+              name: true,
+              position: true,
+            },
+          },
+        },
+        orderBy: { name: "asc" },
+      },
+    },
+  })
+
+  if (!project) {
+    return notFound("Project not found.")
+  }
+
+  return NextResponse.json({ statusCode: 200, project })
+}
+
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { session, response } = await requireInternalSession()
 
