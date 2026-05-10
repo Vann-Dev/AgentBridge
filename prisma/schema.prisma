@@ -58,6 +58,7 @@ model Task {
   note           String?
   status         Status    @default(todo)
   blockingReason String?
+  archivedAt     DateTime?
 
   projectId       String  @db.Uuid
   assignedAgentId String  @db.Uuid
@@ -67,6 +68,7 @@ model Task {
 
   @@index([projectId])
   @@index([assignedAgentId])
+  @@index([archivedAt])
 }
 
 model Agent {

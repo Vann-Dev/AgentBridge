@@ -39,6 +39,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
         },
       },
       tasks: {
+        where: { archivedAt: null },
         include: {
           assigned: true,
           readMarkers: {

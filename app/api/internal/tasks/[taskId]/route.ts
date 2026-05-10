@@ -63,6 +63,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     where: {
       id: taskId,
       project: { company: { userId: session.userId } },
+      archivedAt: null,
     },
     select: { id: true, note: true, status: true, projectId: true },
   })
@@ -203,6 +204,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     where: {
       id: taskId,
       project: { company: { userId: session.userId } },
+      archivedAt: null,
     },
     select: { id: true },
   })

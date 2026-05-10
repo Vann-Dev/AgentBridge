@@ -102,6 +102,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<TaskCard | null>(null)
   const [deletingTask, setDeletingTask] = useState<TaskCard | null>(null)
+  const [confirmArchiveDone, setConfirmArchiveDone] = useState(false)
   const queryClient = useQueryClient()
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
@@ -171,6 +172,16 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
       queryClient.invalidateQueries({ queryKey: ["project", projectId] })
     },
   })
+  const archiveDoneMutation = useMutation({
+    mutationFn: () =>
+      apiJson<{ archivedCount: number }>(`/api/internal/projects/${projectId}/archive-done`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      setConfirmArchiveDone(false)
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+    },
+  })
   const deleteMutation = useMutation({
     mutationFn: (taskId: string) =>
       apiJson(`/api/internal/tasks/${taskId}`, {
@@ -182,6 +193,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
     },
   })
   const currentTasks = projectQuery.data.project.tasks
+  const doneTaskCount = currentTasks.filter((task) => task.status === Status.done).length
 
   function moveTask(taskId: string, status: Status) {
     const task = currentTasks.find((item) => item.id === taskId)
@@ -216,7 +228,24 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-3">
+        <div>
+          <p className="text-sm font-medium">Completed tasks</p>
+          <p className="text-sm text-muted-foreground">
+            {doneTaskCount ? `${doneTaskCount} done task${doneTaskCount === 1 ? "" : "s"} can be archived.` : "No done tasks to archive."}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!doneTaskCount || archiveDoneMutation.isPending}
+          onClick={() => setConfirmArchiveDone(true)}
+        >
+          Archive done tasks
+        </Button>
+      </div>
       {statusMutation.error ? <p className="text-sm text-destructive">{statusMutation.error.message}</p> : null}
+      {archiveDoneMutation.error ? <p className="text-sm text-destructive">{archiveDoneMutation.error.message}</p> : null}
       <div className="grid gap-4 xl:grid-cols-4">
         {columns.map((column) => {
           const columnTasks = currentTasks.filter((task) => task.status === column.key)
@@ -388,6 +417,31 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
           ) : null}
         </DialogContent>
       </Dialog>
+      <AlertDialog open={confirmArchiveDone} onOpenChange={setConfirmArchiveDone}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive done tasks?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This hides {doneTaskCount} done task{doneTaskCount === 1 ? "" : "s"} from the active project board. Todo, in-progress, and blocked tasks stay visible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {archiveDoneMutation.error ? (
+            <p className="text-sm text-destructive">{archiveDoneMutation.error.message}</p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={archiveDoneMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={archiveDoneMutation.isPending || !doneTaskCount}
+              onClick={(event) => {
+                event.preventDefault()
+                archiveDoneMutation.mutate()
+              }}
+            >
+              {archiveDoneMutation.isPending ? "Archiving..." : "Archive done tasks"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={!!deletingTask} onOpenChange={(open) => !open && setDeletingTask(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

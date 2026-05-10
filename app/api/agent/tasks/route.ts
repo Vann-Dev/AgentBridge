@@ -35,6 +35,7 @@ const statuses = Object.values(Status)
  *                   note: null
  *                   readBy: []
  *                   blockingReason: null
+ *                   archivedAt: null
  *                   project:
  *                     id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
  *                     name: "Website Redesign"
@@ -66,6 +67,7 @@ export async function GET(request: NextRequest) {
     where: {
       assignedAgentId: agent.id,
       ...(status ? { status: status as Status } : {}),
+      archivedAt: null,
     },
     orderBy: { name: "asc" },
     select: {
@@ -90,6 +92,7 @@ export async function GET(request: NextRequest) {
         orderBy: { readAt: "desc" },
       },
       blockingReason: true,
+      archivedAt: true,
       project: {
         select: {
           id: true,

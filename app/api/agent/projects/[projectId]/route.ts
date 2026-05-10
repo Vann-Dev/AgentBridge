@@ -36,6 +36,7 @@ type RouteContext = {
  *                     note: "Completed responsive layout and deployment wiring."
  *                     readBy: []
  *                     blockingReason: null
+ *                     archivedAt: null
  *                     assigned:
  *                       id: "550e8400-e29b-41d4-a716-446655440000"
  *                       name: "Build Agent"
@@ -65,6 +66,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       name: true,
       description: true,
       tasks: {
+        where: { archivedAt: null },
         orderBy: { name: "asc" },
         select: {
           id: true,
@@ -88,6 +90,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         orderBy: { readAt: "desc" },
       },
           blockingReason: true,
+          archivedAt: true,
           assigned: {
             select: {
               id: true,

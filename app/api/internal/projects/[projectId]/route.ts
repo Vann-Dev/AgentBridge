@@ -20,6 +20,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     },
     include: {
       tasks: {
+        where: { archivedAt: null },
         include: {
           assigned: {
             select: {

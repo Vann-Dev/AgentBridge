@@ -61,6 +61,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     where: {
       id: taskId,
       project: { companyId: agent.companyId },
+      archivedAt: null,
     },
     select: {
       id: true,
@@ -84,6 +85,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         orderBy: { readAt: "desc" },
       },
       blockingReason: true,
+      archivedAt: true,
       project: {
         select: {
           id: true,
@@ -282,6 +284,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     where: {
       id: taskId,
       project: { companyId: agent.companyId },
+      archivedAt: null,
     },
     select: { id: true, note: true, status: true, projectId: true },
   })
@@ -380,6 +383,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
           orderBy: { readAt: "desc" },
         },
         blockingReason: true,
+        archivedAt: true,
         project: {
           select: {
             id: true,
@@ -439,6 +443,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
     where: {
       id: taskId,
       project: { companyId: agent.companyId },
+      archivedAt: null,
     },
     select: { id: true },
   })
