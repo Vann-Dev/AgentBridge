@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { createAuditLog } from "@/lib/api/audit-log"
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -80,6 +81,14 @@ export async function POST(request: Request) {
       position: true,
       companyId: true,
     },
+  })
+
+  await createAuditLog({
+    companyId,
+    action: "agent.created",
+    target: { type: "agent", id: agent.id, name: agent.name },
+    actor: { type: "user", id: session.userId, name: session.username },
+    details: `Created AgentId ${agent.AgentId}.`,
   })
 
   return NextResponse.json({ statusCode: 201, agent }, { status: 201 })

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
+import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
 import { badRequest, notFound, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -64,7 +65,19 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       id: taskId,
       project: { company: { userId: session.userId } },
     },
-    select: { id: true, note: true, natsukiReadAt: true, projectId: true },
+    select: {
+      id: true,
+      name: true,
+      job: true,
+      note: true,
+      natsukiReadAt: true,
+      status: true,
+      blockingReason: true,
+      assignedAgentId: true,
+      projectId: true,
+      project: { select: { companyId: true } },
+      assigned: { select: { name: true } },
+    },
   })
 
   if (!task) {
@@ -112,6 +125,24 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     },
   })
 
+  await createAuditLog({
+    companyId: task.project.companyId,
+    action: status && status !== task.status ? "task.status_changed" : "task.updated",
+    target: { type: "task", id: task.id, name: updatedTask.name },
+    actor: { type: "user", id: session.userId, name: session.username },
+    details: formatChangedFields([
+      name && name !== task.name && "name",
+      job && job !== task.job && "job",
+      status && status !== task.status && `status (${task.status} → ${status})`,
+      assignedAgentId && assignedAgentId !== task.assignedAgentId && "assignee",
+      noteChanged && "note",
+      hasNatsukiReadAt && "read marker",
+      blockingReason !== undefined &&
+        (blockingReason || null) !== task.blockingReason &&
+        "blocking reason",
+    ]),
+  })
+
   return NextResponse.json({ statusCode: 200, task: updatedTask })
 }
 
@@ -126,7 +157,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
       id: taskId,
       project: { company: { userId: session.userId } },
     },
-    select: { id: true },
+    select: { id: true, name: true, project: { select: { companyId: true } } },
   })
 
   if (!task) {
@@ -134,6 +165,14 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   }
 
   await prisma.task.delete({ where: { id: task.id } })
+
+  await createAuditLog({
+    companyId: task.project.companyId,
+    action: "task.deleted",
+    target: { type: "task", id: task.id, name: task.name },
+    actor: { type: "user", id: session.userId, name: session.username },
+    details: "Task deleted.",
+  })
 
   return NextResponse.json({ statusCode: 200, taskId: task.id })
 }
