@@ -28,6 +28,21 @@ export async function GET(_request: Request, { params }: RouteContext) {
               position: true,
             },
           },
+          readMarkers: {
+            select: {
+              agentId: true,
+              status: true,
+              readAt: true,
+              agent: {
+                select: {
+                  id: true,
+                  AgentId: true,
+                  name: true,
+                },
+              },
+            },
+            orderBy: { readAt: "desc" },
+          },
         },
         orderBy: { name: "asc" },
       },

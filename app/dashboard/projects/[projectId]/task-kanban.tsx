@@ -53,13 +53,24 @@ import { apiJson } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
 
+type TaskReadMarker = {
+  agentId: string
+  status: Status
+  readAt: string | Date
+  agent: {
+    id: string
+    AgentId: string
+    name: string
+  }
+}
+
 type TaskCard = {
   id: string
   name: string
   job: string
   status: Status
   note: string | null
-  natsukiReadAt: string | Date | null
+  readMarkers: TaskReadMarker[]
   blockingReason: string | null
   assigned: {
     id: string
@@ -119,7 +130,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                 project: {
                   ...current.project,
                   tasks: current.project.tasks.map((task) =>
-                    task.id === taskId ? { ...task, status } : task
+                    task.id === taskId ? { ...task, status, readMarkers: [] } : task
                   ),
                 },
               }
@@ -147,7 +158,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
         job: string
         status: string
         note: string
-        natsukiReadAt: string | Date | null
+        readByAgentIds: string[]
         blockingReason: string
       }
     }) =>
@@ -188,11 +199,6 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
     if (!editingTask) return
 
     const note = String(formData.get("note") ?? "")
-    const originalNote = editingTask.note ?? ""
-    const noteChanged = note.trim() !== originalNote.trim()
-    const originalReadAt = editingTask.natsukiReadAt
-      ? new Date(editingTask.natsukiReadAt).toISOString()
-      : null
 
     updateMutation.mutate({
       taskId: editingTask.id,
@@ -202,10 +208,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
         job: String(formData.get("job") ?? ""),
         status: String(formData.get("status") ?? ""),
         note,
-        natsukiReadAt:
-          formData.get("natsukiReadAt") && !noteChanged
-            ? originalReadAt ?? new Date().toISOString()
-            : null,
+        readByAgentIds: formData.getAll("readByAgentIds").map(String),
         blockingReason: String(formData.get("blockingReason") ?? ""),
       },
     })
@@ -258,11 +261,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                           <CardHeader>
                             <div className="flex items-start justify-between gap-2">
                               <CardTitle>{task.name}</CardTitle>
-                              {task.status === Status.done ? (
-                                <Badge variant={task.natsukiReadAt ? "secondary" : "outline"}>
-                                  {task.natsukiReadAt ? "Read" : "Unread"}
-                                </Badge>
-                              ) : null}
+                              <ReadBadge task={task} agents={agents} />
                             </div>
                             <CardDescription>
                               <ExpandableText label="Job" text={task.job} />
@@ -366,23 +365,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                   rows={3}
                 />
               </div>
-              <div className="flex items-center justify-between gap-3 rounded-2xl border p-3 text-sm">
-                <div>
-                  <Label htmlFor="edit-task-natsuki-read">Natsuki/main read marker</Label>
-                  <p className="text-muted-foreground">
-                    {editingTask.natsukiReadAt
-                      ? `Marked read ${new Date(editingTask.natsukiReadAt).toLocaleString()}. Changing the note marks it unread again.`
-                      : "Not read yet"}
-                  </p>
-                </div>
-                <input
-                  id="edit-task-natsuki-read"
-                  name="natsukiReadAt"
-                  type="checkbox"
-                  defaultChecked={Boolean(editingTask.natsukiReadAt)}
-                  className="size-4 accent-primary"
-                />
-              </div>
+              <ReadMarkerFields agents={agents} task={editingTask} />
               <div className="space-y-2">
                 <Label htmlFor="edit-task-blocking-reason">Blocking reason</Label>
                 <Textarea
@@ -478,6 +461,54 @@ function ExpandableText({
       >
         {text}
       </p>
+    </div>
+  )
+}
+
+function ReadBadge({ agents, task }: { agents: AgentOption[]; task: TaskCard }) {
+  const currentStatusReads = task.readMarkers.filter((marker) => marker.status === task.status)
+
+  if (!agents.length) return null
+
+  return (
+    <Badge variant={currentStatusReads.length ? "secondary" : "outline"}>
+      {currentStatusReads.length}/{agents.length} read
+    </Badge>
+  )
+}
+
+function ReadMarkerFields({ agents, task }: { agents: AgentOption[]; task: TaskCard }) {
+  const readAgentIds = new Set(
+    task.readMarkers
+      .filter((marker) => marker.status === task.status)
+      .map((marker) => marker.agentId)
+  )
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-3 text-sm">
+      <div>
+        <Label>Read markers for current status</Label>
+        <p className="text-muted-foreground">
+          Applies only to this task while it is {task.status}. Changing the note without selecting readers marks this status unread.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {agents.map((agent) => (
+          <label key={agent.id} className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
+            <input
+              name="readByAgentIds"
+              type="checkbox"
+              value={agent.id}
+              defaultChecked={readAgentIds.has(agent.id)}
+              className="size-4 accent-primary"
+            />
+            <span>
+              <span className="font-medium">{agent.name}</span>
+              <span className="block text-xs text-muted-foreground">{agent.position}</span>
+            </span>
+          </label>
+        ))}
+      </div>
     </div>
   )
 }

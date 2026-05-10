@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { agentAuth } from "@/lib/agent-auth"
+import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
 import { prisma } from "@/lib/prisma"
 
 type RouteContext = {
@@ -33,7 +34,7 @@ type RouteContext = {
  *                     job: "Implement the responsive landing page"
  *                     status: "done"
  *                     note: "Completed responsive layout and deployment wiring."
- *                     natsukiReadAt: null
+ *                     readBy: []
  *                     blockingReason: null
  *                     assigned:
  *                       id: "550e8400-e29b-41d4-a716-446655440000"
@@ -71,7 +72,21 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
           job: true,
           status: true,
           note: true,
-          natsukiReadAt: true,
+          readMarkers: {
+        select: {
+          agentId: true,
+          status: true,
+          readAt: true,
+          agent: {
+            select: {
+              id: true,
+              AgentId: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { readAt: "desc" },
+      },
           blockingReason: true,
           assigned: {
             select: {
@@ -89,7 +104,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ statusCode: 404, error: "Project not found" }, { status: 404 })
   }
 
-  return NextResponse.json({ statusCode: 200, project })
+  return NextResponse.json({
+    statusCode: 200,
+    project: {
+      ...project,
+      tasks: project.tasks.map(serializeTaskReadMarkers),
+    },
+  })
 }
 
 /**
