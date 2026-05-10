@@ -10,7 +10,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { getDashboardContext } from "@/lib/dashboard/companies"
-import { prisma } from "@/lib/prisma"
 
 import { CreateProjectDialog } from "./create-project-dialog"
 import { ProjectsList } from "./projects-list"
@@ -26,11 +25,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   if (!activeCompany) {
     redirect("/dashboard?createCompany=1")
   }
-
-  const projects = await prisma.project.findMany({
-    where: { companyId: activeCompany.id },
-    orderBy: { name: "asc" },
-  })
 
   return (
     <DashboardShell
@@ -50,7 +44,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           </CardAction>
         </CardHeader>
         <CardContent>
-          <ProjectsList companyId={activeCompany.id} initialProjects={projects} />
+          <ProjectsList companyId={activeCompany.id} />
         </CardContent>
       </Card>
     </DashboardShell>

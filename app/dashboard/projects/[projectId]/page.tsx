@@ -1,21 +1,10 @@
-import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { DashboardShell } from "@/components/dashboard/shell"
-import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { getDashboardContext } from "@/lib/dashboard/companies"
 import { prisma } from "@/lib/prisma"
 
-import { CreateTaskDialog } from "./create-task-dialog"
-import { ProjectOverview } from "./project-overview"
-import { TaskKanban } from "./task-kanban"
+import { ProjectDetailClient } from "./project-detail-client"
 
 type ProjectDetailPageProps = {
   params: Promise<{ projectId: string }>
@@ -39,25 +28,6 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           },
         },
       },
-      tasks: {
-        where: { archivedAt: null },
-        include: {
-          assigned: true,
-          readMarkers: {
-            include: {
-              agent: {
-                select: {
-                  id: true,
-                  AgentId: true,
-                  name: true,
-                },
-              },
-            },
-            orderBy: { readAt: "desc" },
-          },
-        },
-        orderBy: { name: "asc" },
-      },
     },
   })
 
@@ -74,48 +44,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       activePath="projects"
       username={session.username}
     >
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <CardTitle className="text-3xl">{project.name}</CardTitle>
-                <CardDescription className="mt-2 max-w-2xl leading-6">
-                  {project.description || "No description"}
-                </CardDescription>
-              </div>
-              <CreateTaskDialog projectId={project.id} agents={project.company.agents} />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild variant="outline">
-                <Link href={`/dashboard/projects?company=${project.companyId}`}>
-                  Back to projects
-                </Link>
-              </Button>
-              <Button asChild variant="secondary">
-                <a href="#project-overview">Overview</a>
-              </Button>
-              <Button asChild variant="ghost">
-                <a href="#project-kanban">Kanban board</a>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <section id="project-overview" className="scroll-mt-6">
-          <ProjectOverview initialProject={project} projectId={project.id} />
-        </section>
-
-        <section id="project-kanban" className="scroll-mt-6">
-          <TaskKanban
-            agents={project.company.agents}
-            projectId={project.id}
-            tasks={project.tasks}
-          />
-        </section>
-      </div>
+      <ProjectDetailClient initialProject={{ ...project, tasks: [] }} projectId={project.id} />
     </DashboardShell>
   )
 }
