@@ -2,11 +2,9 @@
 
 import { useMemo } from "react"
 import { AlertCircle, CheckCircle2, Circle, Clock3, UsersRound } from "lucide-react"
-import { useQuery } from "@tanstack/react-query"
 
 import { Status } from "@/generated/prisma/enums"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -14,34 +12,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { apiJson } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
-type ProjectOverviewTask = {
-  id: string
-  name: string
-  job: string
-  status: Status
-  note: string | null
-  natsukiReadAt: string | Date | null
-  blockingReason: string | null
-  assigned: {
-    id: string
-    name: string
-    position: string
-  }
-}
-
-type ProjectOverviewData = {
-  id: string
-  name: string
-  description: string
-  tasks: ProjectOverviewTask[]
-}
+import type { ProjectDetailData, ProjectTask } from "./types"
 
 type ProjectOverviewProps = {
-  initialProject: ProjectOverviewData
-  projectId: string
+  project: ProjectDetailData
 }
 
 const statuses = [
@@ -73,14 +49,7 @@ const statuses = [
 
 const statusLabels = new Map(statuses.map((status) => [status.key, status.label]))
 
-export function ProjectOverview({ initialProject, projectId }: ProjectOverviewProps) {
-  const projectQuery = useQuery({
-    queryKey: ["project", projectId],
-    queryFn: () =>
-      apiJson<{ project: ProjectOverviewData }>(`/api/internal/projects/${projectId}`),
-    initialData: { project: initialProject },
-  })
-  const project = projectQuery.data.project
+export function ProjectOverview({ project }: ProjectOverviewProps) {
   const tasks = project.tasks
   const totalTasks = tasks.length
   const doneTasks = tasks.filter((task) => task.status === Status.done)
@@ -106,8 +75,8 @@ export function ProjectOverview({ initialProject, projectId }: ProjectOverviewPr
         blocked: number
         todo: number
         done: number
-        current: ProjectOverviewTask[]
-        latestDone: ProjectOverviewTask | null
+        current: ProjectTask[]
+        latestDone: ProjectTask | null
       }
     >()
 
@@ -153,20 +122,6 @@ export function ProjectOverview({ initialProject, projectId }: ProjectOverviewPr
 
   return (
     <div className="space-y-6">
-      {projectQuery.isError ? (
-        <div className="flex flex-col gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive sm:flex-row sm:items-center sm:justify-between">
-          <p>{projectQuery.error.message}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => projectQuery.refetch()}
-          >
-            Retry
-          </Button>
-        </div>
-      ) : null}
-
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Total tasks" value={totalTasks} helper="All project work" />
         <MetricCard label="In progress" value={activeTasks.length} helper="Currently active" />
@@ -317,6 +272,27 @@ export function ProjectOverview({ initialProject, projectId }: ProjectOverviewPr
   )
 }
 
+export function ProjectOverviewSkeleton() {
+  return (
+    <div className="space-y-6" aria-label="Loading project overview">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <SkeletonBlock key={index} className="h-32" />
+        ))}
+      </div>
+      <SkeletonBlock className="h-56" />
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <SkeletonBlock className="h-96" />
+        <div className="space-y-6">
+          <SkeletonBlock className="h-44" />
+          <SkeletonBlock className="h-44" />
+          <SkeletonBlock className="h-44" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MetricCard({
   danger,
   helper,
@@ -350,7 +326,7 @@ function StatusCount({ label, value }: { label: string; value: number }) {
   )
 }
 
-function TaskSummary({ task }: { task: ProjectOverviewTask }) {
+function TaskSummary({ task }: { task: ProjectTask }) {
   return (
     <div className="rounded-2xl bg-muted p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
@@ -382,4 +358,8 @@ function EmptyMessage({ title, text }: { title: string; text: string }) {
       <p className="mt-1 text-muted-foreground">{text}</p>
     </div>
   )
+}
+
+function SkeletonBlock({ className }: { className?: string }) {
+  return <div className={cn("animate-pulse rounded-3xl bg-muted", className)} />
 }

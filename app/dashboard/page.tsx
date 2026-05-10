@@ -2,6 +2,8 @@ import { CreateCompanyDialog } from "@/components/dashboard/create-company-dialo
 import { DashboardShell } from "@/components/dashboard/shell"
 import { getDashboardContext } from "@/lib/dashboard/companies"
 
+import { DashboardSummary } from "./dashboard-summary"
+
 type DashboardPageProps = {
   searchParams: Promise<{ company?: string; createCompany?: string }>
 }
@@ -34,21 +36,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           ) : null}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <MetricCard label="Companies" value={companies.length} />
-          <MetricCard label="Agents" value="-" />
-          <MetricCard label="Projects" value="-" />
-        </div>
+        <DashboardSummary companyId={activeCompany?.id ?? null} companyCount={companies.length} />
       </div>
     </DashboardShell>
-  )
-}
-
-function MetricCard({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-3xl border border-border bg-card p-5">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-3xl font-semibold">{value}</p>
-    </div>
   )
 }

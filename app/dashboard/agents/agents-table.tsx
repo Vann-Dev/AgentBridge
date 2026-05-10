@@ -35,18 +35,16 @@ type AgentRow = {
 }
 
 type AgentsTableProps = {
-  agents: AgentRow[]
   companyId: string | null
 }
 
-export function AgentsTable({ agents, companyId }: AgentsTableProps) {
+export function AgentsTable({ companyId }: AgentsTableProps) {
   const queryClient = useQueryClient()
   const agentsQuery = useQuery({
     queryKey: ["agents", companyId],
     queryFn: () =>
       apiJson<{ agents: AgentRow[] }>(`/api/internal/agents?companyId=${companyId}`),
     enabled: Boolean(companyId),
-    initialData: { agents },
   })
   const createMutation = useMutation({
     mutationFn: (payload: {
@@ -74,7 +72,7 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
       position: String(formData.get("position") ?? ""),
     })
   }
-  const currentAgents = agentsQuery.data.agents
+  const currentAgents = agentsQuery.data?.agents ?? []
 
   return (
     <div className="space-y-5">
@@ -127,6 +125,15 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
         </Dialog>
       </div>
 
+      {agentsQuery.isError ? (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          <p>{agentsQuery.error.message}</p>
+          <Button className="mt-3" size="sm" variant="outline" onClick={() => agentsQuery.refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
       <div className="overflow-hidden rounded-2xl border border-border">
         <Table>
           <TableHeader className="bg-muted text-xs uppercase tracking-[0.16em] text-muted-foreground">
@@ -139,7 +146,9 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {currentAgents.length ? (
+            {agentsQuery.isLoading ? (
+              <AgentRowsSkeleton />
+            ) : currentAgents.length ? (
               currentAgents.map((agent) => (
                 <TableRow key={agent.id}>
                   <TableCell className="font-medium">{agent.name}</TableCell>
@@ -165,4 +174,26 @@ export function AgentsTable({ agents, companyId }: AgentsTableProps) {
       </div>
     </div>
   )
+}
+
+function AgentRowsSkeleton() {
+  return Array.from({ length: 5 }, (_, index) => (
+    <TableRow key={index} aria-label="Loading agent">
+      <TableCell>
+        <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+      </TableCell>
+      <TableCell>
+        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+      </TableCell>
+      <TableCell>
+        <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+      </TableCell>
+      <TableCell>
+        <div className="h-4 w-48 animate-pulse rounded bg-muted" />
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="ml-auto h-8 w-8 animate-pulse rounded bg-muted" />
+      </TableCell>
+    </TableRow>
+  ))
 }

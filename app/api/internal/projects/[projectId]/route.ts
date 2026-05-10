@@ -19,6 +19,20 @@ export async function GET(_request: Request, { params }: RouteContext) {
       company: { userId: session.userId },
     },
     include: {
+      company: {
+        select: {
+          id: true,
+          name: true,
+          agents: {
+            orderBy: { name: "asc" },
+            select: {
+              id: true,
+              name: true,
+              position: true,
+            },
+          },
+        },
+      },
       tasks: {
         include: {
           assigned: {

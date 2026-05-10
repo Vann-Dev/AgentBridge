@@ -52,32 +52,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiJson } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
-
-type TaskCard = {
-  id: string
-  name: string
-  job: string
-  status: Status
-  note: string | null
-  natsukiReadAt: string | Date | null
-  blockingReason: string | null
-  assigned: {
-    id: string
-    name: string
-    position: string
-  }
-}
-
-type AgentOption = {
-  id: string
-  name: string
-  position: string
-}
+import type { ProjectAgent, ProjectTask } from "./types"
 
 type TaskKanbanProps = {
-  agents: AgentOption[]
+  agents: ProjectAgent[]
   projectId: string
-  tasks: TaskCard[]
+  tasks: ProjectTask[]
 }
 
 const columns = [
@@ -89,13 +69,13 @@ const columns = [
 
 export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
-  const [editingTask, setEditingTask] = useState<TaskCard | null>(null)
-  const [deletingTask, setDeletingTask] = useState<TaskCard | null>(null)
+  const [editingTask, setEditingTask] = useState<ProjectTask | null>(null)
+  const [deletingTask, setDeletingTask] = useState<ProjectTask | null>(null)
   const queryClient = useQueryClient()
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
     queryFn: () =>
-      apiJson<{ project: { tasks: TaskCard[] } }>(`/api/internal/projects/${projectId}`),
+      apiJson<{ project: { tasks: ProjectTask[] } }>(`/api/internal/projects/${projectId}`),
     initialData: { project: { tasks } },
   })
   const statusMutation = useMutation({
@@ -106,12 +86,12 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
       }),
     onMutate: async ({ taskId, status }) => {
       await queryClient.cancelQueries({ queryKey: ["project", projectId] })
-      const previous = queryClient.getQueryData<{ project: { tasks: TaskCard[] } }>([
+      const previous = queryClient.getQueryData<{ project: { tasks: ProjectTask[] } }>([
         "project",
         projectId,
       ])
 
-      queryClient.setQueryData<{ project: { tasks: TaskCard[] } }>(
+      queryClient.setQueryData<{ project: { tasks: ProjectTask[] } }>(
         ["project", projectId],
         (current) =>
           current
@@ -437,6 +417,34 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
   )
 }
 
+
+export function TaskKanbanSkeleton() {
+  return (
+    <div className="space-y-3" aria-label="Loading project tasks">
+      <div className="grid gap-4 xl:grid-cols-4">
+        {columns.map((column) => (
+          <Card key={column.key} className="min-h-80" size="sm">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>{column.label}</CardTitle>
+                <Badge variant="outline">—</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Array.from({ length: 3 }, (_, index) => (
+                <div key={index} className="space-y-3 rounded-2xl border bg-background p-4">
+                  <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+                  <div className="h-14 animate-pulse rounded-2xl bg-muted" />
+                  <div className="h-16 animate-pulse rounded-2xl bg-muted" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function ExpandableText({
   className,
