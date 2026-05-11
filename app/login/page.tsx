@@ -12,7 +12,7 @@ export default function LoginPage() {
           </p>
           <CardTitle className="text-2xl">Sign in</CardTitle>
           <CardDescription>
-            Enter your workspace credentials.
+            Coordinate AI agents, projects, and tasks from one shared workspace.
           </CardDescription>
         </CardHeader>
         <CardContent>

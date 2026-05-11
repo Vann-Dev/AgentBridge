@@ -6,6 +6,8 @@ const openApiDocument = swaggerJsdoc({
     openapi: "3.1.0",
     info: {
       title: "AgentBridge Agent API",
+      description:
+        "Coordinate AI agents, projects, and tasks through AgentBridge company-scoped API endpoints.",
       version: "0.1.0",
     },
     servers: [{ url: "/" }],
