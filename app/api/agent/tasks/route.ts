@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { Status } from "@/generated/prisma/enums"
 import { agentAuth } from "@/lib/agent-auth"
 import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
+import { agentTaskUpdater } from "@/lib/api/task-updater"
 import { prisma } from "@/lib/prisma"
 
 const statuses = Object.values(Status)
@@ -33,14 +34,13 @@ const statuses = Object.values(Status)
  *                   job: "Implement the responsive landing page"
  *                   status: "todo"
  *                   note: null
- *                   summaryUpdatedAt: null
  *                   readBy: []
  *                   blockingReason: null
- *                   dependencies: []
- *                   dependencyIds: []
- *                   unblocks: []
- *                   isDependencyReady: false
  *                   archivedAt: null
+ *                   taskUpdatedAt: "2026-05-11T08:40:00.000Z"
+ *                   taskUpdatedById: "550e8400-e29b-41d4-a716-446655440000"
+ *                   taskUpdatedByName: "Build Agent"
+ *                   taskUpdatedByType: "agent"
  *                   project:
  *                     id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
  *                     name: "Website Redesign"
@@ -81,7 +81,10 @@ export async function GET(request: NextRequest) {
       job: true,
       status: true,
       note: true,
-      summaryUpdatedAt: true,
+      taskUpdatedAt: true,
+      taskUpdatedById: true,
+      taskUpdatedByName: true,
+      taskUpdatedByType: true,
       readMarkers: {
         select: {
           agentId: true,
@@ -99,14 +102,6 @@ export async function GET(request: NextRequest) {
       },
       blockingReason: true,
       archivedAt: true,
-      blockedByDependencies: {
-        select: { dependencyTask: { select: { id: true, name: true, status: true } } },
-        orderBy: { createdAt: "asc" },
-      },
-      unblocksDependencies: {
-        select: { blockedTask: { select: { id: true, name: true, status: true } } },
-        orderBy: { createdAt: "asc" },
-      },
       project: {
         select: {
           id: true,
@@ -160,12 +155,6 @@ export async function GET(request: NextRequest) {
  *                 items:
  *                   type: string
  *                 description: AgentId values to mark as read for the task's initial status.
- *               dependencyIds:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: uuid
- *                 description: Task IDs that must be done before this task is ready.
  *               blockingReason:
  *                 type: string
  *                 nullable: true
@@ -178,7 +167,6 @@ export async function GET(request: NextRequest) {
  *             status: "todo"
  *             note: "Completed responsive layout and deployment wiring."
  *             readBy: []
- *             dependencyIds: []
  *             blockingReason: null
  *     responses:
  *       201:
@@ -193,13 +181,12 @@ export async function GET(request: NextRequest) {
  *                 job: "Implement the responsive landing page"
  *                 status: "todo"
  *                 note: "Completed responsive layout and deployment wiring."
- *                 summaryUpdatedAt: "2026-05-11T06:30:00.000Z"
  *                 readBy: []
  *                 blockingReason: null
- *                 dependencies: []
- *                 dependencyIds: []
- *                 unblocks: []
- *                 isDependencyReady: false
+ *                 taskUpdatedAt: "2026-05-11T08:40:00.000Z"
+ *                 taskUpdatedById: "550e8400-e29b-41d4-a716-446655440000"
+ *                 taskUpdatedByName: "Build Agent"
+ *                 taskUpdatedByType: "agent"
  *                 assigned:
  *                   id: "550e8400-e29b-41d4-a716-446655440000"
  *                   name: "Build Agent"
@@ -226,7 +213,6 @@ export async function POST(request: NextRequest) {
     status?: unknown
     note?: unknown
     readBy?: unknown
-    dependencyIds?: unknown
     blockingReason?: unknown
   } | null
 
@@ -236,17 +222,12 @@ export async function POST(request: NextRequest) {
   const job = typeof body?.job === "string" ? body.job.trim() : ""
   const status = typeof body?.status === "string" ? body.status : "todo"
   const note = typeof body?.note === "string" ? body.note.trim() : ""
-  const readBy = parseStringIds(body?.readBy)
-  const dependencyIds = parseStringIds(body?.dependencyIds)
+  const readBy = parseReadByAgentIds(body?.readBy)
   const blockingReason =
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : ""
 
   if (!readBy) {
     return NextResponse.json({ statusCode: 400, error: "Invalid read markers" }, { status: 400 })
-  }
-
-  if (!dependencyIds) {
-    return NextResponse.json({ statusCode: 400, error: "Invalid dependency tasks" }, { status: 400 })
   }
 
   if (!projectId || !assignedAgentId || !name || !job) {
@@ -268,10 +249,6 @@ export async function POST(request: NextRequest) {
     },
     select: {
       id: true,
-      tasks: {
-        where: { id: { in: dependencyIds }, archivedAt: null },
-        select: { id: true },
-      },
       company: {
         select: {
           agents: {
@@ -294,10 +271,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ statusCode: 400, error: "Read marker agent not found" }, { status: 400 })
   }
 
-  if (project.tasks.length !== dependencyIds.length) {
-    return NextResponse.json({ statusCode: 400, error: "Dependency task not found" }, { status: 400 })
-  }
-
   const task = await prisma.task.create({
     data: {
       projectId,
@@ -306,19 +279,27 @@ export async function POST(request: NextRequest) {
       job,
       status: status as Status,
       note: note || null,
-      summaryUpdatedAt: note ? new Date() : null,
       blockingReason: blockingReason || null,
+      ...agentTaskUpdater(agent),
       readMarkers: {
         create: project.company.agents.map((readAgent) => ({
           agentId: readAgent.id,
           status: status as Status,
         })),
       },
-      blockedByDependencies: {
-        create: dependencyIds.map((dependencyTaskId) => ({ dependencyTaskId })),
-      },
     },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      job: true,
+      status: true,
+      note: true,
+      blockingReason: true,
+      archivedAt: true,
+      taskUpdatedAt: true,
+      taskUpdatedById: true,
+      taskUpdatedByName: true,
+      taskUpdatedByType: true,
       assigned: {
         select: {
           id: true,
@@ -341,41 +322,17 @@ export async function POST(request: NextRequest) {
         },
         orderBy: { readAt: "desc" },
       },
-      blockedByDependencies: {
-        select: {
-          dependencyTask: {
-            select: {
-              id: true,
-              name: true,
-              status: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "asc" },
-      },
-      unblocksDependencies: {
-        select: {
-          blockedTask: {
-            select: {
-              id: true,
-              name: true,
-              status: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "asc" },
-      },
     },
   })
 
   return NextResponse.json({ statusCode: 201, task: serializeTaskReadMarkers(task) }, { status: 201 })
 }
 
-function parseStringIds(value: unknown) {
+function parseReadByAgentIds(value: unknown) {
   if (value === undefined) return []
   if (!Array.isArray(value)) return null
 
-  const ids = value.filter((item): item is string => typeof item === "string" && Boolean(item))
+  const agentIds = value.filter((item): item is string => typeof item === "string" && Boolean(item))
 
-  return ids.length === value.length ? Array.from(new Set(ids)) : null
+  return agentIds.length === value.length ? Array.from(new Set(agentIds)) : null
 }

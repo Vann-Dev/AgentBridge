@@ -56,6 +56,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
       job: true,
       note: true,
       summaryUpdatedAt: true,
+      taskUpdatedAt: true,
+      taskUpdatedById: true,
+      taskUpdatedByName: true,
+      taskUpdatedByType: true,
       status: true,
       blockingReason: true,
       assigned: {

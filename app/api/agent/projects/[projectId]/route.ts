@@ -37,6 +37,10 @@ type RouteContext = {
  *                     readBy: []
  *                     blockingReason: null
  *                     archivedAt: null
+ *                     taskUpdatedAt: "2026-05-11T08:40:00.000Z"
+ *                     taskUpdatedById: "550e8400-e29b-41d4-a716-446655440000"
+ *                     taskUpdatedByName: "Build Agent"
+ *                     taskUpdatedByType: "agent"
  *                     assigned:
  *                       id: "550e8400-e29b-41d4-a716-446655440000"
  *                       name: "Build Agent"
@@ -74,32 +78,27 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
           job: true,
           status: true,
           note: true,
-          summaryUpdatedAt: true,
+          taskUpdatedAt: true,
+          taskUpdatedById: true,
+          taskUpdatedByName: true,
+          taskUpdatedByType: true,
           readMarkers: {
+        select: {
+          agentId: true,
+          status: true,
+          readAt: true,
+          agent: {
             select: {
-              agentId: true,
-              status: true,
-              readAt: true,
-              agent: {
-                select: {
-                  id: true,
-                  AgentId: true,
-                  name: true,
-                },
-              },
+              id: true,
+              AgentId: true,
+              name: true,
             },
-            orderBy: { readAt: "desc" },
           },
+        },
+        orderBy: { readAt: "desc" },
+      },
           blockingReason: true,
           archivedAt: true,
-          blockedByDependencies: {
-            select: { dependencyTask: { select: { id: true, name: true, status: true } } },
-            orderBy: { createdAt: "asc" },
-          },
-          unblocksDependencies: {
-            select: { blockedTask: { select: { id: true, name: true, status: true } } },
-            orderBy: { createdAt: "asc" },
-          },
           assigned: {
             select: {
               id: true,

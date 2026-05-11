@@ -4,6 +4,7 @@ import { Status } from "@/generated/prisma/enums"
 import { createAuditLog } from "@/lib/api/audit-log"
 import { serializeTaskDependencies } from "@/lib/api/task-dependencies"
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
+import { userTaskUpdater } from "@/lib/api/task-updater"
 import { prisma } from "@/lib/prisma"
 
 const statuses = Object.values(Status)
@@ -101,6 +102,7 @@ export async function POST(request: Request) {
       note: note || null,
       summaryUpdatedAt: note ? new Date() : null,
       blockingReason: blockingReason || null,
+      ...userTaskUpdater({ id: session.userId, name: session.username }),
       readMarkers: {
         create: readByAgentIds.map((agentId) => ({
           agentId,

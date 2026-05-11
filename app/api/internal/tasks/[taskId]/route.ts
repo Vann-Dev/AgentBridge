@@ -4,6 +4,7 @@ import { Status } from "@/generated/prisma/enums"
 import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
 import { hasDependencyCycle, serializeTaskDependencies } from "@/lib/api/task-dependencies"
 import { badRequest, notFound, requireInternalSession } from "@/lib/api/internal"
+import { userTaskUpdater } from "@/lib/api/task-updater"
 import { prisma } from "@/lib/prisma"
 
 const statuses = Object.values(Status)
@@ -222,8 +223,20 @@ export async function PATCH(request: Request, { params }: RouteContext) {
           ? { note: note || null, summaryUpdatedAt: note ? new Date() : null }
           : {}),
         ...(blockingReason !== undefined ? { blockingReason: blockingReason || null } : {}),
+        ...userTaskUpdater({ id: session.userId, name: session.username }),
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        job: true,
+        status: true,
+        note: true,
+        blockingReason: true,
+        archivedAt: true,
+        taskUpdatedAt: true,
+        taskUpdatedById: true,
+        taskUpdatedByName: true,
+        taskUpdatedByType: true,
         assigned: {
           select: {
             id: true,

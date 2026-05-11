@@ -344,6 +344,7 @@ function TaskSummary({ task }: { task: ProjectTask }) {
           <p className="text-xs text-muted-foreground">
             {task.assigned.name} · {statusLabels.get(task.status)}
           </p>
+          <TaskUpdateMeta task={task} />
         </div>
         <Badge variant={task.status === Status.blocked ? "destructive" : "outline"}>
           {statusLabels.get(task.status)}
@@ -364,6 +365,53 @@ function TaskSummary({ task }: { task: ProjectTask }) {
       )}
     </div>
   )
+}
+
+function TaskUpdateMeta({ task }: { task: ProjectTask }) {
+  const updatedAt = new Date(task.taskUpdatedAt)
+
+  if (Number.isNaN(updatedAt.getTime())) return null
+
+  const actor = task.taskUpdatedByName?.trim() || fallbackUpdaterLabel(task.taskUpdatedByType)
+  const exact = new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(updatedAt)
+
+  return (
+    <p className="mt-0.5 text-xs text-muted-foreground" title={`Updated ${exact}${actor ? ` by ${actor}` : ""}`}>
+      Updated {formatRelativeTime(updatedAt)}{actor ? ` by ${actor}` : ""}
+    </p>
+  )
+}
+
+function fallbackUpdaterLabel(type: string) {
+  if (type === "agent") return "agent"
+  if (type === "user") return "user"
+
+  return "system"
+}
+
+function formatRelativeTime(date: Date) {
+  const diffSeconds = Math.round((date.getTime() - Date.now()) / 1000)
+  const absSeconds = Math.abs(diffSeconds)
+  const units = [
+    { unit: "year", seconds: 31536000 },
+    { unit: "month", seconds: 2592000 },
+    { unit: "week", seconds: 604800 },
+    { unit: "day", seconds: 86400 },
+    { unit: "hour", seconds: 3600 },
+    { unit: "minute", seconds: 60 },
+  ] as const
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" })
+
+  for (const { unit, seconds } of units) {
+    if (absSeconds >= seconds) {
+      return formatter.format(Math.round(diffSeconds / seconds), unit)
+    }
+  }
+
+  return formatter.format(diffSeconds, "second")
 }
 
 function EmptyMessage({ title, text }: { title: string; text: string }) {

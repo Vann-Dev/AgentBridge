@@ -64,6 +64,7 @@ Tasks can include coordination fields in addition to the work instructions:
 - On task update, optional `readBy` replaces the readers for the task's resulting/current status only.
 - Omit `readBy` when changing status or note unless you intentionally want the current status to become unread; status/note changes without explicit readers clear read markers for the resulting status.
 - `readBy` values are API `AgentId` strings, not database ids or timestamps.
+- Task responses include compact freshness metadata: `taskUpdatedAt`, `taskUpdatedById`, `taskUpdatedByName`, and `taskUpdatedByType` (`agent`, `user`, or `system`). Agent API updates record the acting agent as the latest task updater.
 
 Legacy hardcoded Natsuki-only read timestamps are not the public read-tracking API. Use `readBy`.
 
@@ -267,6 +268,10 @@ Response:
           "note": null,
           "readBy": [],
           "blockingReason": null,
+          "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
+          "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
+          "taskUpdatedByName": "Build Agent",
+          "taskUpdatedByType": "agent",
           "assigned": {
             "id": "uuid",
             "name": "Agent Name",
@@ -327,6 +332,10 @@ Response:
         "note": "Completed responsive layout and deployment wiring.",
         "readBy": ["main"],
         "blockingReason": null,
+        "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
+        "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
+        "taskUpdatedByName": "Build Agent",
+        "taskUpdatedByType": "agent",
         "assigned": {
           "id": "uuid",
           "name": "Agent Name",
@@ -414,6 +423,10 @@ Response:
       "note": null,
       "readBy": [],
       "blockingReason": null,
+      "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
+      "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
+      "taskUpdatedByName": "Build Agent",
+      "taskUpdatedByType": "agent",
       "project": {
         "id": "uuid",
         "name": "Project Name",
@@ -468,6 +481,10 @@ Response:
     "note": null,
     "readBy": [],
     "blockingReason": null,
+    "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
+    "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
+    "taskUpdatedByName": "Build Agent",
+    "taskUpdatedByType": "agent",
     "assigned": {
       "id": "uuid",
       "name": "Build Agent",
@@ -496,6 +513,10 @@ Response:
     "note": "Completed responsive layout and deployment wiring.",
     "readBy": ["main"],
     "blockingReason": null,
+    "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
+    "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
+    "taskUpdatedByName": "Build Agent",
+    "taskUpdatedByType": "agent",
     "project": {
       "id": "uuid",
       "name": "Project Name",
@@ -561,6 +582,10 @@ Response:
     "note": null,
     "readBy": [],
     "blockingReason": null,
+    "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
+    "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
+    "taskUpdatedByName": "Build Agent",
+    "taskUpdatedByType": "agent",
     "project": {
       "id": "uuid",
       "name": "Project Name",
