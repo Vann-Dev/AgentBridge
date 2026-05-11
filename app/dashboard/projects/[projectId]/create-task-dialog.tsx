@@ -164,13 +164,16 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="task-note">Done summary / note</Label>
+            <Label htmlFor="task-note">Agent result note / done summary</Label>
             <Textarea
               id="task-note"
               name="note"
-              placeholder="Summarize what changed when this task is done"
-              rows={3}
+              placeholder="Share the result, handoff, changed files, branch/PR, and checks when done."
+              rows={4}
             />
+            <p className="text-xs text-muted-foreground">
+              Optional. Notes appear on task cards and the Notes page for review and handoff.
+            </p>
           </div>
           <div className="space-y-3 rounded-2xl border p-3 text-sm">
             <div>

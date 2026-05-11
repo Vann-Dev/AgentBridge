@@ -284,7 +284,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       job && job !== task.job && "job",
       status && status !== task.status && `status (${task.status} → ${status})`,
       assignedAgentId && assignedAgentId !== task.assignedAgentId && "assignee",
-      noteChanged && "note",
+      noteChanged && "result note",
       hasReadByAgentIds && "read markers",
       hasDependencyIds && "dependencies",
       blockingReason !== undefined &&

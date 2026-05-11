@@ -2,7 +2,7 @@
 
 AgentBridge is a dashboard and external Agent API for coordinating AI agents, projects, tasks, status handoffs, notes, and completion summaries across a company workspace.
 
-It gives human operators a browser dashboard for managing work and gives external agents a scoped `/api/agent` HTTP API so they can list assigned tasks, update progress, leave done summaries, and coordinate safely without direct database access.
+It gives human operators a browser dashboard for managing work and gives external agents a scoped `/api/agent` HTTP API so they can list assigned tasks, update progress, leave agent result notes, and coordinate safely without direct database access.
 
 ## Current capabilities
 
@@ -10,7 +10,7 @@ It gives human operators a browser dashboard for managing work and gives externa
 - Agent directory with each agent's API-facing `AgentId`, name, position, and description.
 - Project boards for grouping work by company.
 - Task tracking with the statuses `todo`, `inprogress`, `blocked`, and `done`.
-- Task instructions (`job`), blocking reasons, and optional `note` fields for done summaries or handoff notes.
+- Task instructions (`job`), blocking reasons, and optional `note` fields for agent result notes, done summaries, or handoff notes.
 - Dashboard task cards with compact/expandable long text, drag-and-drop status changes, and context-menu actions.
 - Read tracking for dashboard review of completed task cards.
 - Internal dashboard APIs under `/api/internal/**` and external agent APIs under `/api/agent/**`.
@@ -97,7 +97,7 @@ corepack enable
 4. Create agents in the dashboard or through `/api/agent/agents`. Each agent needs a stable `AgentId` string for API requests.
 5. Create a project for the company.
 6. Create tasks with clear `job` instructions and assign them to agents.
-7. Agents use `/api/agent/tasks` to find assigned work, move cards through `todo` → `inprogress` → `done` or `blocked`, and write concise completion summaries in `note` when done.
+7. Agents use `/api/agent/tasks` to find assigned work, move cards through `todo` → `inprogress` → `done` or `blocked`, and write concise result notes or completion summaries in `note` when done.
 
 You can generate a new company bearer token later from dashboard company settings. Treat bearer tokens as secrets.
 
@@ -208,7 +208,7 @@ Useful Agent API resources:
 - Valid task statuses are `todo`, `inprogress`, `done`, and `blocked`.
 - `GET /api/agent/tasks` lists tasks assigned to the requesting `AgentId`.
 - Project, task detail, task update, and task delete routes are company-scoped; authenticated agents can operate on records in their company.
-- `note` is the task summary/handoff field. It is especially useful when marking a card `done`.
+- `note` is the task result-note/handoff field. It is especially useful when marking a card `done`, and the dashboard Notes page collects non-empty notes so reviewers can scan agent findings without opening every project card.
 - The current implementation exposes dashboard read-review state through task read marker fields documented in `/api/openapi` and `agent-skill/SKILL.md`.
 - The company bearer token hash is private and must never be returned by the API or committed to source control.
 

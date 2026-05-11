@@ -214,7 +214,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                   ) : agent.latestDone ? (
                     <div className="mt-4 rounded-2xl bg-muted p-3 text-sm">
                       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        Latest done summary
+                        Latest result note
                       </p>
                       <p className="mt-1 font-medium">{agent.latestDone.name}</p>
                       <p className="mt-1 line-clamp-2 text-muted-foreground">
@@ -248,13 +248,13 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           <Card>
             <CardHeader>
               <CardTitle>Recently completed</CardTitle>
-              <CardDescription>Done cards with summaries for review.</CardDescription>
+              <CardDescription>Done cards with agent result notes for review.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {recentDone.length ? (
                 recentDone.map((task) => <TaskSummary key={task.id} task={task} />)
               ) : (
-                <EmptyMessage title="No done summaries" text="Completed task notes will appear here." />
+                <EmptyMessage title="No result notes" text="Completed task result notes and handoffs will appear here." />
               )}
             </CardContent>
           </Card>

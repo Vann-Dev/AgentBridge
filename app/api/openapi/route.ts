@@ -103,7 +103,11 @@ const openApiDocument = swaggerJsdoc({
             name: { type: "string" },
             job: { type: "string" },
             status: { $ref: "#/components/schemas/Status" },
-            note: { type: "string", nullable: true },
+            note: {
+              type: "string",
+              nullable: true,
+              description: "Agent result note, completion summary, or handoff text shown on task cards and the dashboard Notes page.",
+            },
             summaryUpdatedAt: { type: "string", format: "date-time", nullable: true },
             readBy: {
               type: "array",

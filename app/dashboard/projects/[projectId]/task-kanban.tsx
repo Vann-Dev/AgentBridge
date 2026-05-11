@@ -330,7 +330,8 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
                     <ContextMenu key={task.id}>
                       <ContextMenuTrigger asChild>
                         <Card
-                          className="cursor-grab bg-background opacity-100 transition active:cursor-grabbing"
+                          id={`task-${task.id}`}
+                          className="cursor-grab scroll-mt-6 bg-background opacity-100 transition active:cursor-grabbing"
                           draggable
                           onDragEnd={() => setDraggingTaskId(null)}
                           onDragStart={(event) => {
@@ -365,7 +366,7 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
                                 Unblocks {task.unblocks.length} task{task.unblocks.length === 1 ? "" : "s"}.
                               </p>
                             ) : null}
-                            {task.note ? <ExpandableText label="Done summary" text={task.note} /> : null}
+                            {task.note ? <ExpandableText label="Agent result note" text={task.note} /> : null}
                             {task.blockingReason ? (
                               <ExpandableText
                                 className="border border-destructive/30 bg-destructive/10 text-destructive"
@@ -464,14 +465,17 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
               </div>
               <DependencyFields currentTaskId={editingTask.id} tasks={currentTasks} defaultDependencyIds={editingTask.dependencyIds} />
               <div className="space-y-2">
-                <Label htmlFor="edit-task-note">Done summary / note</Label>
+                <Label htmlFor="edit-task-note">Agent result note / done summary</Label>
                 <Textarea
                   id="edit-task-note"
                   name="note"
                   defaultValue={editingTask.note ?? ""}
-                  placeholder="Summarize what changed when this task is done"
-                  rows={3}
+                  placeholder="Share the result, handoff, changed files, branch/PR, and checks when done."
+                  rows={4}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Notes appear on task cards and the Notes page. Updating this field keeps read markers per status and marks the current status unread unless readers are selected.
+                </p>
               </div>
               {editingStatus === editingTask.status ? (
                 <ReadMarkerFields agents={agents} task={editingTask} />
@@ -731,7 +735,7 @@ function ReadMarkerFields({ agents, task }: { agents: AgentOption[]; task: TaskC
       <div>
         <Label>Read markers for current status</Label>
         <p className="text-muted-foreground">
-          Applies only to this task while it is {task.status}. Changing the note without selecting readers marks this status unread.
+          Applies only to this task while it is {task.status}. Changing the result note without selecting readers marks this status unread.
         </p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
