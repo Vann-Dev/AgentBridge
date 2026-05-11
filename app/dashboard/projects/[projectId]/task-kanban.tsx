@@ -103,6 +103,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
   const [editingTask, setEditingTask] = useState<TaskCard | null>(null)
   const [deletingTask, setDeletingTask] = useState<TaskCard | null>(null)
   const [confirmArchiveDone, setConfirmArchiveDone] = useState(false)
+  const [archiveSuccess, setArchiveSuccess] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
@@ -177,8 +178,13 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
       apiJson<{ archivedCount: number }>(`/api/internal/projects/${projectId}/archive-done`, {
         method: "POST",
       }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       setConfirmArchiveDone(false)
+      setArchiveSuccess(
+        data.archivedCount
+          ? `Archived ${data.archivedCount} done task${data.archivedCount === 1 ? "" : "s"}.`
+          : "No done tasks needed archiving."
+      )
       queryClient.invalidateQueries({ queryKey: ["project", projectId] })
     },
   })
@@ -244,6 +250,20 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
           Archive done tasks
         </Button>
       </div>
+      {archiveSuccess ? (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+          <span>{archiveSuccess}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+            onClick={() => setArchiveSuccess(null)}
+          >
+            Dismiss
+          </Button>
+        </div>
+      ) : null}
       {statusMutation.error ? <p className="text-sm text-destructive">{statusMutation.error.message}</p> : null}
       {archiveDoneMutation.error ? <p className="text-sm text-destructive">{archiveDoneMutation.error.message}</p> : null}
       <div className="grid gap-4 xl:grid-cols-4">

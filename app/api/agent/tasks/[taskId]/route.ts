@@ -138,9 +138,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *                 type: string
  *                 nullable: true
  *               readBy:
- *                 type: string
- *                 format: date-time
- *                 nullable: true
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: AgentId values to mark as read for the task's resulting status.
  *               blockingReason:
  *                 type: string
  *                 nullable: true
