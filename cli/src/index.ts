@@ -68,12 +68,13 @@ function usage() {
   console.log(`AgentBridge CLI v${VERSION}
 
 Usage:
-  agentbridge openclaw init [--workspace <path>] [--base-url <url>] [--agent <AgentId>] [--dry-run] [--yes]
+  agentbridge openclaw init [--workspace <path>] [--base-url <url>] [--agent <AgentId>] [--all-detected] [--dry-run] [--yes]
   agentbridge openclaw doctor [--workspace <path>] [--base-url <url>] [--token <token>] [--agent <AgentId>]
   agentbridge openclaw check [--workspace <path>] [--base-url <url>] [--token <token>] [--agent <AgentId>]
   agentbridge openclaw status [--workspace <path>]
 
-Default setup uses OpenClaw heartbeat instructions, not cron. Tokens are redacted from logs.`)
+Default setup uses OpenClaw heartbeat instructions, not cron. Tokens are redacted from logs.
+When --workspace is provided it is used exactly; global ~/.openclaw/agents are only considered with --all-detected.`)
 }
 
 function parseArgs(argv: string[]) {
@@ -134,8 +135,9 @@ async function pathExists(target: string) {
 }
 
 async function detectWorkspace(preferred?: string) {
+  if (preferred) return path.resolve(preferred)
+
   const candidates = [
-    preferred,
     process.env.OPENCLAW_HOME,
     path.join(os.homedir(), ".openclaw"),
     process.cwd(),
@@ -149,7 +151,7 @@ async function detectWorkspace(preferred?: string) {
     }
   }
 
-  return path.resolve(preferred ?? process.cwd())
+  return path.resolve(process.cwd())
 }
 
 function parents(start: string) {
@@ -175,7 +177,7 @@ async function looksLikeOpenClawWorkspace(directory: string) {
   return false
 }
 
-async function detectLocalAgents(workspace: string) {
+async function detectLocalAgents(workspace: string, options?: { includeGlobalAgents?: boolean }) {
   const candidates = new Map<string, Candidate>()
   const add = (agentId: string, name: string, source: string) => {
     const clean = agentId.trim().toLowerCase()
@@ -209,10 +211,12 @@ async function detectLocalAgents(workspace: string) {
     }
   }
 
-  for (const dir of [
-    path.join(workspace, ".openclaw", "agents"),
-    path.join(os.homedir(), ".openclaw", "agents"),
-  ]) {
+  const agentDirs = [path.join(workspace, ".openclaw", "agents")]
+  if (options?.includeGlobalAgents) {
+    agentDirs.push(path.join(os.homedir(), ".openclaw", "agents"))
+  }
+
+  for (const dir of agentDirs) {
     if (!(await pathExists(dir))) continue
     const entries = await readdir(dir, { withFileTypes: true })
     for (const entry of entries) {
@@ -258,6 +262,57 @@ async function fetchAgents(
   })
 
   return data.agents
+}
+
+async function fetchAgentsWithFallback(
+  baseUrl: string,
+  token: string,
+  provisionalAgentIds: Array<string | undefined>
+) {
+  const attempts = uniqueStrings([
+    ...provisionalAgentIds,
+    process.env.AGENTBRIDGE_AGENT_ID,
+    "main",
+    "natsuki",
+    "kaito",
+    "tamiko",
+    "ume",
+  ])
+  const failures: string[] = []
+
+  for (const agentId of attempts) {
+    try {
+      return {
+        agents: await fetchAgents(baseUrl, token, agentId),
+        authenticatedAgentId: agentId,
+      }
+    } catch (error) {
+      failures.push(`${agentId}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const manualAgentId = await prompt(
+    "Enter a valid AgentBridge AgentId to fetch available agents"
+  )
+  if (manualAgentId) {
+    return {
+      agents: await fetchAgents(baseUrl, token, manualAgentId),
+      authenticatedAgentId: manualAgentId,
+    }
+  }
+
+  throw new Error(
+    `Could not fetch AgentBridge agents with detected AgentIds. ${failures.map(redact).join("; ")}`
+  )
+}
+
+function uniqueStrings(values: Array<string | undefined>) {
+  const strings: string[] = []
+  for (const value of values) {
+    const trimmed = value?.trim()
+    if (trimmed) strings.push(trimmed)
+  }
+  return [...new Set(strings)]
 }
 
 function matchAgents(candidates: Candidate[], agents: AgentBridgeAgent[]) {
@@ -565,7 +620,9 @@ async function runInit(flags: Map<string, string | boolean>) {
     (await promptSecret("AgentBridge company token"))
   if (!token) throw new Error("Company token is required.")
 
-  const candidates = await detectLocalAgents(workspace)
+  const candidates = await detectLocalAgents(workspace, {
+    includeGlobalAgents: !flags.has("workspace") || flags.has("all-detected"),
+  })
   if (candidates.length > 0) {
     console.log(
       `Detected local OpenClaw candidates: ${candidates.map((candidate) => candidate.agentId).join(", ")}`
@@ -576,11 +633,13 @@ async function runInit(flags: Map<string, string | boolean>) {
     )
   }
 
-  const provisionalAgentId =
-    flagString(flags, "agent") ??
-    candidates[0]?.agentId ??
-    (await prompt("Provisional AgentId for API validation"))
-  const agents = await fetchAgents(baseUrl, token, provisionalAgentId)
+  const explicitAgentId = flagString(flags, "agent")
+  const { agents, authenticatedAgentId } = await fetchAgentsWithFallback(
+    baseUrl,
+    token,
+    [explicitAgentId, ...candidates.map((candidate) => candidate.agentId)]
+  )
+  console.log(`Authenticated to AgentBridge as ${authenticatedAgentId}.`)
   const matches = matchAgents(candidates, agents)
   const selectedAgents = await selectAgents(
     matches,
