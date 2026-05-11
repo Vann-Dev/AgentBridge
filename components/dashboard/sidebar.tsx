@@ -4,6 +4,7 @@ import {
   BotIcon,
   Building2Icon,
   ClipboardListIcon,
+  FileTextIcon,
   HomeIcon,
   NotebookTextIcon,
   ScrollTextIcon,
@@ -24,7 +25,14 @@ type Company = {
 type DashboardSidebarProps = {
   companies: Company[]
   activeCompany: Company | null
-  activePath: "overview" | "agents" | "projects" | "notes" | "audit-logs" | "settings"
+  activePath:
+    | "overview"
+    | "agents"
+    | "projects"
+    | "notes"
+    | "docs"
+    | "audit-logs"
+    | "settings"
   username: string
 }
 
@@ -63,6 +71,12 @@ export function DashboardSidebar({
       href: dashboardHref(activeCompany?.id ?? null, "/notes"),
       key: "notes",
       icon: NotebookTextIcon,
+    },
+    {
+      label: "Docs",
+      href: dashboardHref(activeCompany?.id ?? null, "/docs"),
+      key: "docs",
+      icon: FileTextIcon,
     },
     {
       label: "Audit Log",
