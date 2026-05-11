@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { Badge } from "@/components/ui/badge"
@@ -32,7 +33,10 @@ export function ProjectAgentsManager({
   projectId,
 }: ProjectAgentsManagerProps) {
   const queryClient = useQueryClient()
-  const projectAgentIds = new Set(projectAgents.map((agent) => agent.id))
+  const [open, setOpen] = useState(false)
+  const [selectedAgentIds, setSelectedAgentIds] = useState(() =>
+    projectAgents.map((agent) => agent.id)
+  )
   const mutation = useMutation({
     mutationFn: (agentIds: string[]) =>
       apiJson(`/api/internal/projects/${projectId}/agents`, {
@@ -40,14 +44,33 @@ export function ProjectAgentsManager({
         body: JSON.stringify({ agentIds }),
       }),
     onSuccess: () => {
+      setOpen(false)
       queryClient.invalidateQueries({ queryKey: ["project", projectId] })
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({
+        queryKey: ["dashboard-summary", companyId],
+      })
       queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
     },
   })
 
-  function action(formData: FormData) {
-    mutation.mutate(formData.getAll("agentIds").map(String))
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      setSelectedAgentIds(projectAgents.map((agent) => agent.id))
+    }
+
+    setOpen(nextOpen)
+  }
+
+  function action() {
+    mutation.mutate(selectedAgentIds)
+  }
+
+  function updateSelectedAgent(agentId: string, checked: boolean) {
+    setSelectedAgentIds((current) =>
+      checked
+        ? Array.from(new Set([...current, agentId]))
+        : current.filter((selectedAgentId) => selectedAgentId !== agentId)
+    )
   }
 
   return (
@@ -68,11 +91,12 @@ export function ProjectAgentsManager({
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No agents are linked yet. Add project agents before creating tasks.
+              No agents are linked yet. Add project agents before creating
+              tasks.
             </p>
           )}
         </div>
-        <Dialog>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <Button type="button" variant="outline" size="sm">
               Manage agents
@@ -80,9 +104,12 @@ export function ProjectAgentsManager({
           </DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle className="text-2xl">Manage project agents</DialogTitle>
+              <DialogTitle className="text-2xl">
+                Manage project agents
+              </DialogTitle>
               <DialogDescription>
-                Choose which company agents are available for tasks in this project.
+                Choose which company agents are available for tasks in this
+                project.
               </DialogDescription>
             </DialogHeader>
             <form action={action} className="space-y-4">
@@ -91,16 +118,24 @@ export function ProjectAgentsManager({
                 {companyAgents.length ? (
                   <div className="grid max-h-80 gap-2 overflow-auto pr-1 sm:grid-cols-2">
                     {companyAgents.map((agent) => (
-                      <label key={agent.id} className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2">
+                      <label
+                        key={agent.id}
+                        className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2"
+                      >
                         <input
                           name="agentIds"
                           type="checkbox"
                           value={agent.id}
-                          defaultChecked={projectAgentIds.has(agent.id)}
+                          checked={selectedAgentIds.includes(agent.id)}
+                          onChange={(event) =>
+                            updateSelectedAgent(agent.id, event.target.checked)
+                          }
                           className="mt-1 size-4 accent-primary"
                         />
                         <span className="min-w-0">
-                          <span className="block truncate font-medium">{agent.name}</span>
+                          <span className="block truncate font-medium">
+                            {agent.name}
+                          </span>
                           <span className="block text-xs text-muted-foreground">
                             {agent.AgentId} · {agent.position}
                           </span>
@@ -115,10 +150,15 @@ export function ProjectAgentsManager({
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Removing an agent does not delete or reassign existing tasks. It only prevents new
+                The dialog closes after a successful save. Removing an agent
+                does not delete or reassign existing tasks; it only prevents new
                 assignments until the agent is linked again.
               </p>
-              {mutation.error ? <p className="text-sm text-destructive">{mutation.error.message}</p> : null}
+              {mutation.error ? (
+                <p className="text-sm text-destructive">
+                  {mutation.error.message}
+                </p>
+              ) : null}
               <DialogFooter>
                 <Button disabled={mutation.isPending} type="submit">
                   {mutation.isPending ? "Saving..." : "Save project agents"}

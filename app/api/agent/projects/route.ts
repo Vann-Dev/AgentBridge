@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { agentAuth } from "@/lib/agent-auth"
-import { projectAgentSelect, serializeProjectAgents } from "@/lib/api/project-agents"
+import {
+  projectAgentSelect,
+  serializeProjectAgents,
+} from "@/lib/api/project-agents"
 import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
 import { prisma } from "@/lib/prisma"
 
@@ -55,7 +58,10 @@ export async function GET(request: NextRequest) {
   const agent = await agentAuth(request)
 
   if (!agent) {
-    return NextResponse.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json(
+      { statusCode: 401, error: "Unauthorized" },
+      { status: 401 }
+    )
   }
 
   const { companyId } = agent
@@ -149,6 +155,7 @@ export async function GET(request: NextRequest) {
  *           example:
  *             name: "Website Redesign"
  *             description: "Refresh marketing site"
+ *         description: The authenticated agent is linked to newly-created projects automatically so agent workflows can create initial tasks.
  *     responses:
  *       201:
  *         description: Created project
@@ -171,7 +178,10 @@ export async function POST(request: NextRequest) {
   const agent = await agentAuth(request)
 
   if (!agent) {
-    return NextResponse.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json(
+      { statusCode: 401, error: "Unauthorized" },
+      { status: 401 }
+    )
   }
 
   const body = (await request.json().catch(() => null)) as {
@@ -180,7 +190,8 @@ export async function POST(request: NextRequest) {
   } | null
 
   const name = typeof body?.name === "string" ? body.name.trim() : ""
-  const description = typeof body?.description === "string" ? body.description.trim() : ""
+  const description =
+    typeof body?.description === "string" ? body.description.trim() : ""
 
   if (!name) {
     return NextResponse.json(
@@ -194,6 +205,11 @@ export async function POST(request: NextRequest) {
       companyId: agent.companyId,
       name,
       description,
+      agents: {
+        create: {
+          agentId: agent.id,
+        },
+      },
     },
     select: {
       id: true,
