@@ -29,7 +29,10 @@ export function CreateProjectDialog({ companyId }: CreateProjectDialogProps) {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["projects", companyId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+    },
   })
 
   function action(formData: FormData) {

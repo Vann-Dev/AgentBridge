@@ -44,17 +44,30 @@ type ProjectRow = {
 
 type ProjectsListProps = {
   companyId: string
-  initialProjects: ProjectRow[]
 }
 
-export function ProjectsList({ companyId, initialProjects }: ProjectsListProps) {
+export function ProjectsList({ companyId }: ProjectsListProps) {
   const projectsQuery = useQuery({
     queryKey: ["projects", companyId],
     queryFn: () =>
       apiJson<{ projects: ProjectRow[] }>(`/api/internal/projects?companyId=${companyId}`),
-    initialData: { projects: initialProjects },
   })
-  const projects = projectsQuery.data.projects
+  const projects = projectsQuery.data?.projects ?? []
+
+  if (projectsQuery.isLoading) {
+    return <ProjectsListSkeleton />
+  }
+
+  if (projectsQuery.isError) {
+    return (
+      <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+        <p>{projectsQuery.error.message}</p>
+        <Button className="mt-3" size="sm" variant="outline" onClick={() => projectsQuery.refetch()}>
+          Retry
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -81,6 +94,16 @@ export function ProjectsList({ companyId, initialProjects }: ProjectsListProps) 
   )
 }
 
+function ProjectsListSkeleton() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Loading projects">
+      {Array.from({ length: 6 }, (_, index) => (
+        <Card key={index} className="h-32 animate-pulse bg-muted" size="sm" />
+      ))}
+    </div>
+  )
+}
+
 type ProjectActionsProps = {
   companyId: string
   project: ProjectRow
@@ -100,6 +123,8 @@ function ProjectActions({ companyId, project }: ProjectActionsProps) {
     onSuccess: () => {
       setRenameOpen(false)
       queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["project", project.id] })
     },
   })
   const deleteMutation = useMutation({
@@ -110,6 +135,8 @@ function ProjectActions({ companyId, project }: ProjectActionsProps) {
     onSuccess: () => {
       setDeleteOpen(false)
       queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.removeQueries({ queryKey: ["project", project.id] })
     },
   })
 

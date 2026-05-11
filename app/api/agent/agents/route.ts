@@ -19,6 +19,7 @@ import { prisma } from "@/lib/prisma"
  *               statusCode: 200
  *               agents:
  *                 - id: "550e8400-e29b-41d4-a716-446655440000"
+ *                   AgentId: "kaito"
  *                   name: "Build Agent"
  *                   description: "Handles implementation tasks"
  *                   position: "Software Engineer"
@@ -68,14 +69,19 @@ export async function GET(request: NextRequest) {
  *           schema:
  *             type: object
  *             properties:
+ *               AgentId:
+ *                 type: string
+ *                 description: Stable API identifier the new agent uses in the AgentId header.
+ *                 example: review-agent-01
  *               name:
  *                 type: string
  *               description:
  *                 type: string
  *               position:
  *                 type: string
- *             required: [name, position]
+ *             required: [AgentId, name, position]
  *           example:
+ *             AgentId: "review-agent-01"
  *             name: "Review Agent"
  *             description: "Reviews completed implementation tasks"
  *             position: "Code Reviewer"
@@ -88,6 +94,7 @@ export async function GET(request: NextRequest) {
  *               statusCode: 201
  *               agent:
  *                 id: "a27d7a32-97aa-43df-a9cb-5a41e3fb7b6c"
+ *                 AgentId: "review-agent-01"
  *                 name: "Review Agent"
  *                 description: "Reviews completed implementation tasks"
  *                 position: "Code Reviewer"

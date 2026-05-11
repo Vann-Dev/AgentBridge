@@ -53,13 +53,24 @@ import { apiJson } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
 
+type TaskReadMarker = {
+  agentId: string
+  status: Status
+  readAt: string | Date
+  agent: {
+    id: string
+    AgentId: string
+    name: string
+  }
+}
+
 type TaskCard = {
   id: string
   name: string
   job: string
   status: Status
   note: string | null
-  natsukiReadAt: string | Date | null
+  readMarkers: TaskReadMarker[]
   blockingReason: string | null
   assigned: {
     id: string
@@ -76,6 +87,7 @@ type AgentOption = {
 
 type TaskKanbanProps = {
   agents: AgentOption[]
+  companyId: string
   projectId: string
   tasks: TaskCard[]
 }
@@ -87,10 +99,13 @@ const columns = [
   { key: Status.done, label: "Done" },
 ] as const
 
-export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
+export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanProps) {
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<TaskCard | null>(null)
+  const [editingStatus, setEditingStatus] = useState<Status | null>(null)
   const [deletingTask, setDeletingTask] = useState<TaskCard | null>(null)
+  const [confirmArchiveDone, setConfirmArchiveDone] = useState(false)
+  const [archiveSuccess, setArchiveSuccess] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
@@ -119,7 +134,13 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                 project: {
                   ...current.project,
                   tasks: current.project.tasks.map((task) =>
-                    task.id === taskId ? { ...task, status } : task
+                    task.id === taskId
+                      ? {
+                          ...task,
+                          status,
+                          readMarkers: task.readMarkers.filter((marker) => marker.status !== status),
+                        }
+                      : task
                   ),
                 },
               }
@@ -133,7 +154,12 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
         queryClient.setQueryData(["project", projectId], context.previous)
       }
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
+    },
   })
   const updateMutation = useMutation({
     mutationFn: ({
@@ -147,7 +173,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
         job: string
         status: string
         note: string
-        natsukiReadAt: string | Date | null
+        readByAgentIds: string[]
         blockingReason: string
       }
     }) =>
@@ -157,7 +183,26 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
       }),
     onSuccess: () => {
       setEditingTask(null)
+      setEditingStatus(null)
       queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+    },
+  })
+  const archiveDoneMutation = useMutation({
+    mutationFn: () =>
+      apiJson<{ archivedCount: number }>(`/api/internal/projects/${projectId}/archive-done`, {
+        method: "POST",
+      }),
+    onSuccess: (data) => {
+      setConfirmArchiveDone(false)
+      setArchiveSuccess(
+        data.archivedCount
+          ? `Archived ${data.archivedCount} done task${data.archivedCount === 1 ? "" : "s"}.`
+          : "No done tasks needed archiving."
+      )
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
     },
   })
   const deleteMutation = useMutation({
@@ -168,9 +213,13 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
     onSuccess: () => {
       setDeletingTask(null)
       queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
     },
   })
   const currentTasks = projectQuery.data.project.tasks
+  const doneTaskCount = currentTasks.filter((task) => task.status === Status.done).length
 
   function moveTask(taskId: string, status: Status) {
     const task = currentTasks.find((item) => item.id === taskId)
@@ -188,11 +237,6 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
     if (!editingTask) return
 
     const note = String(formData.get("note") ?? "")
-    const originalNote = editingTask.note ?? ""
-    const noteChanged = note.trim() !== originalNote.trim()
-    const originalReadAt = editingTask.natsukiReadAt
-      ? new Date(editingTask.natsukiReadAt).toISOString()
-      : null
 
     updateMutation.mutate({
       taskId: editingTask.id,
@@ -202,10 +246,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
         job: String(formData.get("job") ?? ""),
         status: String(formData.get("status") ?? ""),
         note,
-        natsukiReadAt:
-          formData.get("natsukiReadAt") && !noteChanged
-            ? originalReadAt ?? new Date().toISOString()
-            : null,
+        readByAgentIds: formData.getAll("readByAgentIds").map(String),
         blockingReason: String(formData.get("blockingReason") ?? ""),
       },
     })
@@ -213,7 +254,38 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-3">
+        <div>
+          <p className="text-sm font-medium">Completed tasks</p>
+          <p className="text-sm text-muted-foreground">
+            {doneTaskCount ? `${doneTaskCount} done task${doneTaskCount === 1 ? "" : "s"} can be archived.` : "No done tasks to archive."}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!doneTaskCount || archiveDoneMutation.isPending}
+          onClick={() => setConfirmArchiveDone(true)}
+        >
+          Archive done tasks
+        </Button>
+      </div>
+      {archiveSuccess ? (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+          <span>{archiveSuccess}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
+            onClick={() => setArchiveSuccess(null)}
+          >
+            Dismiss
+          </Button>
+        </div>
+      ) : null}
       {statusMutation.error ? <p className="text-sm text-destructive">{statusMutation.error.message}</p> : null}
+      {archiveDoneMutation.error ? <p className="text-sm text-destructive">{archiveDoneMutation.error.message}</p> : null}
       <div className="grid gap-4 xl:grid-cols-4">
         {columns.map((column) => {
           const columnTasks = currentTasks.filter((task) => task.status === column.key)
@@ -258,11 +330,7 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                           <CardHeader>
                             <div className="flex items-start justify-between gap-2">
                               <CardTitle>{task.name}</CardTitle>
-                              {task.status === Status.done ? (
-                                <Badge variant={task.natsukiReadAt ? "secondary" : "outline"}>
-                                  {task.natsukiReadAt ? "Read" : "Unread"}
-                                </Badge>
-                              ) : null}
+                              <ReadBadge task={task} agents={agents} />
                             </div>
                             <CardDescription>
                               <ExpandableText label="Job" text={task.job} />
@@ -288,7 +356,12 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                         </Card>
                       </ContextMenuTrigger>
                       <ContextMenuContent>
-                        <ContextMenuItem onSelect={() => setEditingTask(task)}>
+                        <ContextMenuItem
+                          onSelect={() => {
+                            setEditingTask(task)
+                            setEditingStatus(task.status)
+                          }}
+                        >
                           Update task
                         </ContextMenuItem>
                         <ContextMenuSeparator />
@@ -311,7 +384,15 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
           )
         })}
       </div>
-      <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
+      <Dialog
+        open={!!editingTask}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingTask(null)
+            setEditingStatus(null)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-2xl">Update task</DialogTitle>
@@ -344,7 +425,11 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select name="status" defaultValue={editingTask.status}>
+                <Select
+                  name="status"
+                  value={editingStatus ?? editingTask.status}
+                  onValueChange={(value) => setEditingStatus(value as Status)}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
@@ -366,23 +451,18 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
                   rows={3}
                 />
               </div>
-              <div className="flex items-center justify-between gap-3 rounded-2xl border p-3 text-sm">
-                <div>
-                  <Label htmlFor="edit-task-natsuki-read">Natsuki/main read marker</Label>
-                  <p className="text-muted-foreground">
-                    {editingTask.natsukiReadAt
-                      ? `Marked read ${new Date(editingTask.natsukiReadAt).toLocaleString()}. Changing the note marks it unread again.`
-                      : "Not read yet"}
+              {editingStatus === editingTask.status ? (
+                <ReadMarkerFields agents={agents} task={editingTask} />
+              ) : (
+                <div className="space-y-1 rounded-2xl border p-3 text-sm text-muted-foreground">
+                  <Label>Read markers for current status</Label>
+                  <p>
+                    Status changes start unread for the destination status and keep other status read
+                    markers intact. Save first, then reopen this task to edit read markers for the new
+                    status.
                   </p>
                 </div>
-                <input
-                  id="edit-task-natsuki-read"
-                  name="natsukiReadAt"
-                  type="checkbox"
-                  defaultChecked={Boolean(editingTask.natsukiReadAt)}
-                  className="size-4 accent-primary"
-                />
-              </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="edit-task-blocking-reason">Blocking reason</Label>
                 <Textarea
@@ -405,6 +485,31 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
           ) : null}
         </DialogContent>
       </Dialog>
+      <AlertDialog open={confirmArchiveDone} onOpenChange={setConfirmArchiveDone}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive done tasks?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This hides {doneTaskCount} done task{doneTaskCount === 1 ? "" : "s"} from the active project board. Todo, in-progress, and blocked tasks stay visible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {archiveDoneMutation.error ? (
+            <p className="text-sm text-destructive">{archiveDoneMutation.error.message}</p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={archiveDoneMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={archiveDoneMutation.isPending || !doneTaskCount}
+              onClick={(event) => {
+                event.preventDefault()
+                archiveDoneMutation.mutate()
+              }}
+            >
+              {archiveDoneMutation.isPending ? "Archiving..." : "Archive done tasks"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={!!deletingTask} onOpenChange={(open) => !open && setDeletingTask(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -437,6 +542,35 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
   )
 }
 
+
+
+export function TaskKanbanSkeleton() {
+  return (
+    <div className="space-y-3" aria-label="Loading project tasks">
+      <div className="grid gap-4 xl:grid-cols-4">
+        {columns.map((column) => (
+          <Card key={column.key} className="min-h-80" size="sm">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>{column.label}</CardTitle>
+                <Badge variant="outline">—</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Array.from({ length: 3 }, (_, index) => (
+                <div key={index} className="space-y-3 rounded-2xl border bg-background p-4">
+                  <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+                  <div className="h-14 animate-pulse rounded-2xl bg-muted" />
+                  <div className="h-16 animate-pulse rounded-2xl bg-muted" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function ExpandableText({
   className,
@@ -478,6 +612,54 @@ function ExpandableText({
       >
         {text}
       </p>
+    </div>
+  )
+}
+
+function ReadBadge({ agents, task }: { agents: AgentOption[]; task: TaskCard }) {
+  const currentStatusReads = task.readMarkers.filter((marker) => marker.status === task.status)
+
+  if (!agents.length) return null
+
+  return (
+    <Badge variant={currentStatusReads.length ? "secondary" : "outline"}>
+      {currentStatusReads.length}/{agents.length} read
+    </Badge>
+  )
+}
+
+function ReadMarkerFields({ agents, task }: { agents: AgentOption[]; task: TaskCard }) {
+  const readAgentIds = new Set(
+    task.readMarkers
+      .filter((marker) => marker.status === task.status)
+      .map((marker) => marker.agentId)
+  )
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-3 text-sm">
+      <div>
+        <Label>Read markers for current status</Label>
+        <p className="text-muted-foreground">
+          Applies only to this task while it is {task.status}. Changing the note without selecting readers marks this status unread.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {agents.map((agent) => (
+          <label key={agent.id} className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
+            <input
+              name="readByAgentIds"
+              type="checkbox"
+              value={agent.id}
+              defaultChecked={readAgentIds.has(agent.id)}
+              className="size-4 accent-primary"
+            />
+            <span>
+              <span className="font-medium">{agent.name}</span>
+              <span className="block text-xs text-muted-foreground">{agent.position}</span>
+            </span>
+          </label>
+        ))}
+      </div>
     </div>
   )
 }

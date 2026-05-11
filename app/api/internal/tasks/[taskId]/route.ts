@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
+import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
 import { badRequest, notFound, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -20,7 +21,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     job?: unknown
     status?: unknown
     note?: unknown
-    natsukiReadAt?: unknown
+    readByAgentIds?: unknown
     blockingReason?: unknown
   } | null
   const assignedAgentId =
@@ -29,13 +30,13 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const job = typeof body?.job === "string" ? body.job.trim() : undefined
   const status = typeof body?.status === "string" ? body.status : undefined
   const note = typeof body?.note === "string" ? body.note.trim() : undefined
-  const natsukiReadAt = parseReadMarker(body?.natsukiReadAt)
-  const hasNatsukiReadAt = body?.natsukiReadAt !== undefined
+  const readByAgentIds = parseReadByAgentIds(body?.readByAgentIds)
+  const hasReadByAgentIds = body?.readByAgentIds !== undefined
   const blockingReason =
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : undefined
 
-  if (hasNatsukiReadAt && natsukiReadAt === undefined) {
-    return badRequest("Invalid Natsuki read marker.")
+  if (hasReadByAgentIds && !readByAgentIds) {
+    return badRequest("Invalid read markers.")
   }
 
   if (status && !statuses.includes(status as Status)) {
@@ -52,7 +53,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     !job &&
     !status &&
     note === undefined &&
-    !hasNatsukiReadAt &&
+    !hasReadByAgentIds &&
     blockingReason === undefined
   ) {
     return badRequest("No task changes provided.")
@@ -63,8 +64,20 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     where: {
       id: taskId,
       project: { company: { userId: session.userId } },
+      archivedAt: null,
     },
-    select: { id: true, note: true, natsukiReadAt: true, projectId: true },
+    select: {
+      id: true,
+      name: true,
+      job: true,
+      note: true,
+      status: true,
+      blockingReason: true,
+      assignedAgentId: true,
+      projectId: true,
+      project: { select: { companyId: true } },
+      assigned: { select: { name: true } },
+    },
   })
 
   if (!task) {
@@ -88,31 +101,129 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
   }
 
-  const noteChanged = note !== undefined && (note || null) !== task.note
-  const updatedTask = await prisma.task.update({
-    where: { id: task.id },
-    data: {
-      ...(assignedAgentId ? { assignedAgentId } : {}),
-      ...(name ? { name } : {}),
-      ...(job ? { job } : {}),
-      ...(status ? { status: status as Status } : {}),
-      ...(note !== undefined ? { note: note || null } : {}),
-      ...(hasNatsukiReadAt ? { natsukiReadAt } : {}),
-      ...(noteChanged && task.natsukiReadAt ? { natsukiReadAt: null } : {}),
-      ...(blockingReason !== undefined ? { blockingReason: blockingReason || null } : {}),
-    },
-    include: {
-      assigned: {
-        select: {
-          id: true,
-          name: true,
-          position: true,
+  if (hasReadByAgentIds && readByAgentIds?.length) {
+    const readAgents = await prisma.agent.findMany({
+      where: {
+        id: { in: readByAgentIds },
+        company: {
+          userId: session.userId,
+          projects: { some: { id: task.projectId } },
         },
       },
-    },
+      select: { id: true },
+    })
+
+    if (readAgents.length !== readByAgentIds.length) {
+      return badRequest("Read marker agent not found.")
+    }
+  }
+
+  const nextStatus = (status as Status | undefined) ?? task.status
+  const statusChanged = nextStatus !== task.status
+  const noteChanged = note !== undefined && (note || null) !== task.note
+  const shouldClearNextStatusReads = !hasReadByAgentIds && (statusChanged || noteChanged)
+  const updatedTask = await prisma.$transaction(async (tx) => {
+    if (hasReadByAgentIds) {
+      await tx.taskReadMarker.deleteMany({
+        where: {
+          taskId: task.id,
+          status: nextStatus,
+          agentId: { notIn: readByAgentIds ?? [] },
+        },
+      })
+
+      if (readByAgentIds?.length) {
+        await Promise.all(
+          readByAgentIds.map((agentId) =>
+            tx.taskReadMarker.upsert({
+              where: {
+                taskId_agentId_status: {
+                  taskId: task.id,
+                  agentId,
+                  status: nextStatus,
+                },
+              },
+              create: {
+                taskId: task.id,
+                agentId,
+                status: nextStatus,
+              },
+              update: { readAt: new Date() },
+            })
+          )
+        )
+      }
+    }
+
+    if (shouldClearNextStatusReads) {
+      await tx.taskReadMarker.deleteMany({ where: { taskId: task.id, status: nextStatus } })
+    }
+
+    return tx.task.update({
+      where: { id: task.id },
+      data: {
+        ...(assignedAgentId ? { assignedAgentId } : {}),
+        ...(name ? { name } : {}),
+        ...(job ? { job } : {}),
+        ...(status ? { status: status as Status } : {}),
+        ...(note !== undefined ? { note: note || null } : {}),
+        ...(blockingReason !== undefined ? { blockingReason: blockingReason || null } : {}),
+      },
+      include: {
+        assigned: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+          },
+        },
+        readMarkers: {
+          select: {
+            agentId: true,
+            status: true,
+            readAt: true,
+            agent: {
+              select: {
+                id: true,
+                AgentId: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { readAt: "desc" },
+        },
+      },
+    })
+  })
+
+  await createAuditLog({
+    companyId: task.project.companyId,
+    action: status && status !== task.status ? "task.status_changed" : "task.updated",
+    target: { type: "task", id: task.id, name: updatedTask.name },
+    actor: { type: "user", id: session.userId, name: session.username },
+    details: formatChangedFields([
+      name && name !== task.name && "name",
+      job && job !== task.job && "job",
+      status && status !== task.status && `status (${task.status} → ${status})`,
+      assignedAgentId && assignedAgentId !== task.assignedAgentId && "assignee",
+      noteChanged && "note",
+      hasReadByAgentIds && "read markers",
+      blockingReason !== undefined &&
+        (blockingReason || null) !== task.blockingReason &&
+        "blocking reason",
+    ]),
   })
 
   return NextResponse.json({ statusCode: 200, task: updatedTask })
+}
+
+function parseReadByAgentIds(value: unknown) {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return null
+
+  const agentIds = value.filter((item): item is string => typeof item === "string" && Boolean(item))
+
+  return agentIds.length === value.length ? Array.from(new Set(agentIds)) : null
 }
 
 export async function DELETE(_request: Request, { params }: RouteContext) {
@@ -125,8 +236,9 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     where: {
       id: taskId,
       project: { company: { userId: session.userId } },
+      archivedAt: null,
     },
-    select: { id: true },
+    select: { id: true, name: true, project: { select: { companyId: true } } },
   })
 
   if (!task) {
@@ -135,16 +247,13 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 
   await prisma.task.delete({ where: { id: task.id } })
 
+  await createAuditLog({
+    companyId: task.project.companyId,
+    action: "task.deleted",
+    target: { type: "task", id: task.id, name: task.name },
+    actor: { type: "user", id: session.userId, name: session.username },
+    details: "Task deleted.",
+  })
+
   return NextResponse.json({ statusCode: 200, taskId: task.id })
-}
-
-function parseReadMarker(value: unknown) {
-  if (value === undefined) return null
-  if (value === true || value === "true") return new Date()
-  if (value === null || value === false || value === "" || value === "false") return null
-  if (typeof value !== "string") return undefined
-
-  const date = new Date(value)
-
-  return Number.isNaN(date.getTime()) ? undefined : date
 }

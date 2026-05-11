@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
 import { agentAuth } from "@/lib/agent-auth"
+import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
 import { prisma } from "@/lib/prisma"
 
 const statuses = Object.values(Status)
@@ -32,7 +33,7 @@ type RouteContext = {
  *                 job: "Implement the responsive landing page"
  *                 status: "todo"
  *                 note: "Completed responsive layout and deployment wiring."
- *                 natsukiReadAt: null
+ *                 readBy: []
  *                 blockingReason: null
  *                 project:
  *                   id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
@@ -60,6 +61,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     where: {
       id: taskId,
       project: { companyId: agent.companyId },
+      archivedAt: null,
     },
     select: {
       id: true,
@@ -67,8 +69,23 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       job: true,
       status: true,
       note: true,
-      natsukiReadAt: true,
+      readMarkers: {
+        select: {
+          agentId: true,
+          status: true,
+          readAt: true,
+          agent: {
+            select: {
+              id: true,
+              AgentId: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { readAt: "desc" },
+      },
       blockingReason: true,
+      archivedAt: true,
       project: {
         select: {
           id: true,
@@ -89,7 +106,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ statusCode: 404, error: "Task not found" }, { status: 404 })
   }
 
-  return NextResponse.json({ statusCode: 200, task })
+  return NextResponse.json({ statusCode: 200, task: serializeTaskReadMarkers(task) })
 }
 
 /**
@@ -120,10 +137,11 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *               note:
  *                 type: string
  *                 nullable: true
- *               natsukiReadAt:
- *                 type: string
- *                 format: date-time
- *                 nullable: true
+ *               readBy:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: AgentId values to mark as read for the task's resulting status.
  *               blockingReason:
  *                 type: string
  *                 nullable: true
@@ -134,7 +152,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *             job: "Implement the responsive landing page"
  *             status: "inprogress"
  *             note: "Completed responsive layout and deployment wiring."
- *             natsukiReadAt: null
+ *             readBy: []
  *             blockingReason: null
  *     responses:
  *       200:
@@ -149,7 +167,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *                 job: "Implement the responsive landing page"
  *                 status: "inprogress"
  *                 note: "Completed responsive layout and deployment wiring."
- *                 natsukiReadAt: null
+ *                 readBy: []
  *                 blockingReason: null
  *                 project:
  *                   id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
@@ -190,7 +208,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     job?: unknown
     status?: unknown
     note?: unknown
-    natsukiReadAt?: unknown
+    readBy?: unknown
     blockingReason?: unknown
   }
   const data: {
@@ -199,9 +217,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     job?: string
     status?: Status
     note?: string | null
-    natsukiReadAt?: Date | null
     blockingReason?: string | null
   } = {}
+  const readBy = parseReadByAgentIds(updates.readBy)
+  const hasReadBy = updates.readBy !== undefined
+
+  if (hasReadBy && !readBy) {
+    return NextResponse.json({ statusCode: 400, error: "Invalid read markers" }, { status: 400 })
+  }
 
   if (updates.assignedAgentId !== undefined) {
     if (typeof updates.assignedAgentId !== "string" || !updates.assignedAgentId) {
@@ -246,19 +269,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     data.note = updates.note?.trim() || null
   }
 
-  if (updates.natsukiReadAt !== undefined) {
-    const readAt = parseReadMarker(updates.natsukiReadAt)
-
-    if (readAt === undefined) {
-      return NextResponse.json(
-        { statusCode: 400, error: "Invalid Natsuki read marker" },
-        { status: 400 }
-      )
-    }
-
-    data.natsukiReadAt = readAt
-  }
-
   if (updates.blockingReason !== undefined) {
     if (updates.blockingReason !== null && typeof updates.blockingReason !== "string") {
       return NextResponse.json({ statusCode: 400, error: "Invalid blocking reason" }, { status: 400 })
@@ -267,7 +277,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     data.blockingReason = updates.blockingReason?.trim() || null
   }
 
-  if (!Object.keys(data).length) {
+  if (!Object.keys(data).length && !hasReadBy) {
     return NextResponse.json({ statusCode: 400, error: "No task updates provided" }, { status: 400 })
   }
 
@@ -275,8 +285,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     where: {
       id: taskId,
       project: { companyId: agent.companyId },
+      archivedAt: null,
     },
-    select: { id: true, note: true, natsukiReadAt: true, projectId: true },
+    select: { id: true, note: true, status: true, projectId: true },
   })
 
   if (!task) {
@@ -300,47 +311,103 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
   }
 
-  if (
-    data.note !== undefined &&
-    data.note !== task.note &&
-    task.natsukiReadAt &&
-    updates.natsukiReadAt === undefined
-  ) {
-    data.natsukiReadAt = null
+  const readAgents = hasReadBy
+    ? await prisma.agent.findMany({
+        where: { AgentId: { in: readBy ?? [] }, companyId: agent.companyId },
+        select: { id: true, AgentId: true },
+      })
+    : []
+
+  if (hasReadBy && readAgents.length !== readBy?.length) {
+    return NextResponse.json({ statusCode: 400, error: "Read marker agent not found" }, { status: 400 })
   }
 
-  const updatedTask = await prisma.task.update({
-    where: { id: task.id },
-    data,
-    select: {
-      id: true,
-      name: true,
-      job: true,
-      status: true,
-      note: true,
-      natsukiReadAt: true,
-      blockingReason: true,
-      project: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
+  const nextStatus = data.status ?? task.status
+  const statusChanged = nextStatus !== task.status
+  const noteChanged = data.note !== undefined && data.note !== task.note
+  const shouldClearNextStatusReads = !hasReadBy && (statusChanged || noteChanged)
+  const updatedTask = await prisma.$transaction(async (tx) => {
+    if (hasReadBy) {
+      await tx.taskReadMarker.deleteMany({
+        where: {
+          taskId: task.id,
+          status: nextStatus,
+          agentId: { notIn: readAgents.map((readAgent) => readAgent.id) },
+        },
+      })
+
+      await Promise.all(
+        readAgents.map((readAgent) =>
+          tx.taskReadMarker.upsert({
+            where: {
+              taskId_agentId_status: {
+                taskId: task.id,
+                agentId: readAgent.id,
+                status: nextStatus,
+              },
+            },
+            create: {
+              taskId: task.id,
+              agentId: readAgent.id,
+              status: nextStatus,
+            },
+            update: { readAt: new Date() },
+          })
+        )
+      )
+    }
+
+    if (shouldClearNextStatusReads) {
+      await tx.taskReadMarker.deleteMany({ where: { taskId: task.id, status: nextStatus } })
+    }
+
+    return tx.task.update({
+      where: { id: task.id },
+      data,
+      select: {
+        id: true,
+        name: true,
+        job: true,
+        status: true,
+        note: true,
+        readMarkers: {
+          select: {
+            agentId: true,
+            status: true,
+            readAt: true,
+            agent: {
+              select: {
+                id: true,
+                AgentId: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { readAt: "desc" },
+        },
+        blockingReason: true,
+        archivedAt: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
         },
       },
-    },
+    })
   })
 
-  return NextResponse.json({ statusCode: 200, task: updatedTask })
+  return NextResponse.json({ statusCode: 200, task: serializeTaskReadMarkers(updatedTask) })
 }
 
-function parseReadMarker(value: unknown) {
-  if (value === true || value === "true") return new Date()
-  if (value === null || value === false || value === "" || value === "false") return null
-  if (typeof value !== "string") return undefined
+function parseReadByAgentIds(value: unknown) {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return null
 
-  const date = new Date(value)
+  const agentIds = value.filter((item): item is string => typeof item === "string" && Boolean(item))
 
-  return Number.isNaN(date.getTime()) ? undefined : date
+  return agentIds.length === value.length ? Array.from(new Set(agentIds)) : null
 }
 
 /**
@@ -379,6 +446,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
     where: {
       id: taskId,
       project: { companyId: agent.companyId },
+      archivedAt: null,
     },
     select: { id: true },
   })

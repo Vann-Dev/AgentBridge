@@ -25,6 +25,7 @@ model Company {
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   agents      Agent[]
   projects    Project[]
+  auditLogs   AuditLog[]
 
   @@index([userId])
 }
@@ -56,17 +57,19 @@ model Task {
   name           String
   job            String
   note           String?
-  natsukiReadAt  DateTime?
   status         Status    @default(todo)
   blockingReason String?
+  archivedAt     DateTime?
 
   projectId       String  @db.Uuid
   assignedAgentId String  @db.Uuid
-  project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assigned        Agent   @relation(fields: [assignedAgentId], references: [id], onDelete: Restrict)
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assigned        Agent          @relation(fields: [assignedAgentId], references: [id], onDelete: Restrict)
+  readMarkers     TaskReadMarker[]
 
   @@index([projectId])
   @@index([assignedAgentId])
+  @@index([archivedAt])
 }
 
 model Agent {
@@ -76,9 +79,43 @@ model Agent {
   description String
   position    String
 
-  tasks     Task[]
-  companyId String  @db.Uuid
+  tasks       Task[]
+  readMarkers TaskReadMarker[]
+  companyId   String  @db.Uuid
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
+}
+
+model TaskReadMarker {
+  id     String   @id @default(uuid()) @db.Uuid
+  status Status
+  readAt DateTime @default(now())
+
+  taskId  String @db.Uuid
+  agentId String @db.Uuid
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, agentId, status])
+  @@index([agentId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  action     String
+  targetType String
+  targetId   String?  @db.Uuid
+  targetName String?
+  details    String?
+  actorType  String
+  actorId    String?  @db.Uuid
+  actorName  String?
+  createdAt  DateTime @default(now())
+
+  companyId String  @db.Uuid
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([targetType, targetId])
 }

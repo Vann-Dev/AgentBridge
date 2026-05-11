@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
+import { createAuditLog } from "@/lib/api/audit-log"
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     job?: unknown
     status?: unknown
     note?: unknown
-    natsukiReadAt?: unknown
+    readByAgentIds?: unknown
     blockingReason?: unknown
   } | null
 
@@ -28,13 +29,8 @@ export async function POST(request: Request) {
   const job = typeof body?.job === "string" ? body.job.trim() : ""
   const status = typeof body?.status === "string" ? body.status : "todo"
   const note = typeof body?.note === "string" ? body.note.trim() : ""
-  const natsukiReadAt = parseReadMarker(body?.natsukiReadAt)
   const blockingReason =
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : ""
-
-  if (natsukiReadAt === undefined) {
-    return badRequest("Invalid Natsuki read marker.")
-  }
 
   if (!projectId || !assignedAgentId || !name || !job) {
     return badRequest("Project, agent, name, and job are required.")
@@ -42,6 +38,12 @@ export async function POST(request: Request) {
 
   if (!statuses.includes(status as Status)) {
     return badRequest("Invalid task status.")
+  }
+
+  const readByAgentIds = parseReadByAgentIds(body?.readByAgentIds)
+
+  if (!readByAgentIds) {
+    return badRequest("Invalid read markers.")
   }
 
   const project = await prisma.project.findFirst({
@@ -52,10 +54,26 @@ export async function POST(request: Request) {
         agents: { some: { id: assignedAgentId } },
       },
     },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          agents: {
+            where: { id: { in: readByAgentIds } },
+            select: { id: true },
+          },
+        },
+      },
+    },
   })
 
   if (!project) {
     return badRequest("Project or agent not found.")
+  }
+
+  if (project.company.agents.length !== readByAgentIds.length) {
+    return badRequest("Read marker agent not found.")
   }
 
   const task = await prisma.task.create({
@@ -66,8 +84,13 @@ export async function POST(request: Request) {
       job,
       status: status as Status,
       note: note || null,
-      natsukiReadAt,
       blockingReason: blockingReason || null,
+      readMarkers: {
+        create: readByAgentIds.map((agentId) => ({
+          agentId,
+          status: status as Status,
+        })),
+      },
     },
     include: {
       assigned: {
@@ -77,19 +100,39 @@ export async function POST(request: Request) {
           position: true,
         },
       },
+      readMarkers: {
+        select: {
+          agentId: true,
+          status: true,
+          readAt: true,
+          agent: {
+            select: {
+              id: true,
+              AgentId: true,
+              name: true,
+            },
+          },
+        },
+      },
     },
+  })
+
+  await createAuditLog({
+    companyId: project.companyId,
+    action: "task.created",
+    target: { type: "task", id: task.id, name: task.name },
+    actor: { type: "user", id: session.userId, name: session.username },
+    details: `Created as ${task.status} and assigned to ${task.assigned.name}.`,
   })
 
   return NextResponse.json({ statusCode: 201, task }, { status: 201 })
 }
 
-function parseReadMarker(value: unknown) {
-  if (value === undefined) return null
-  if (value === true || value === "true") return new Date()
-  if (value === null || value === false || value === "" || value === "false") return null
-  if (typeof value !== "string") return undefined
+function parseReadByAgentIds(value: unknown) {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return null
 
-  const date = new Date(value)
+  const agentIds = value.filter((item): item is string => typeof item === "string" && Boolean(item))
 
-  return Number.isNaN(date.getTime()) ? undefined : date
+  return agentIds.length === value.length ? Array.from(new Set(agentIds)) : null
 }
