@@ -326,7 +326,8 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
                     <ContextMenu key={task.id}>
                       <ContextMenuTrigger asChild>
                         <Card
-                          className="cursor-grab bg-background opacity-100 transition active:cursor-grabbing"
+                          id={`task-${task.id}`}
+                          className="scroll-mt-24 cursor-grab bg-background opacity-100 transition active:cursor-grabbing target:ring-2 target:ring-primary/60 target:ring-offset-2"
                           draggable
                           onDragEnd={() => setDraggingTaskId(null)}
                           onDragStart={(event) => {

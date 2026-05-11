@@ -231,6 +231,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         job: true,
         status: true,
         note: true,
+        summaryUpdatedAt: true,
         blockingReason: true,
         archivedAt: true,
         taskUpdatedAt: true,
