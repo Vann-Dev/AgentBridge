@@ -53,19 +53,23 @@ model Project {
 }
 
 model Task {
-  id             String    @id @default(uuid()) @db.Uuid
-  name           String
-  job            String
-  note           String?
-  status         Status    @default(todo)
-  blockingReason String?
-  archivedAt     DateTime?
+  id               String    @id @default(uuid()) @db.Uuid
+  name             String
+  job              String
+  note             String?
+  summaryUpdatedAt DateTime?
+  status           Status    @default(todo)
+  blockingReason   String?
+  archivedAt       DateTime?
 
-  projectId       String  @db.Uuid
-  assignedAgentId String  @db.Uuid
-  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assigned        Agent          @relation(fields: [assignedAgentId], references: [id], onDelete: Restrict)
-  readMarkers     TaskReadMarker[]
+  projectId       String @db.Uuid
+  assignedAgentId String @db.Uuid
+  project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assigned        Agent   @relation(fields: [assignedAgentId], references: [id], onDelete: Restrict)
+
+  readMarkers           TaskReadMarker[]
+  blockedByDependencies TaskDependency[] @relation("BlockedTaskDependencies")
+  unblocksDependencies  TaskDependency[] @relation("DependencyTaskDependencies")
 
   @@index([projectId])
   @@index([assignedAgentId])
@@ -85,6 +89,19 @@ model Agent {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
+}
+
+model TaskDependency {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+
+  blockedTaskId    String @db.Uuid
+  dependencyTaskId String @db.Uuid
+  blockedTask      Task   @relation("BlockedTaskDependencies", fields: [blockedTaskId], references: [id], onDelete: Cascade)
+  dependencyTask   Task   @relation("DependencyTaskDependencies", fields: [dependencyTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([blockedTaskId, dependencyTaskId])
+  @@index([dependencyTaskId])
 }
 
 model TaskReadMarker {

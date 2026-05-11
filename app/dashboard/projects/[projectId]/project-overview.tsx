@@ -54,6 +54,12 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
   const totalTasks = tasks.length
   const doneTasks = tasks.filter((task) => task.status === Status.done)
   const blockedTasks = tasks.filter((task) => task.status === Status.blocked)
+  const attentionTasks = tasks.filter(
+    (task) =>
+      task.status === Status.blocked ||
+      task.isDependencyReady ||
+      /qa|fix|review|blocked|failure/i.test(`${task.name} ${task.blockingReason ?? ""}`)
+  )
   const activeTasks = tasks.filter((task) => task.status === Status.inprogress)
   const todoTasks = tasks.filter((task) => task.status === Status.todo)
   const donePercent = totalTasks ? Math.round((doneTasks.length / totalTasks) * 100) : 0
@@ -208,7 +214,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                   ) : agent.latestDone ? (
                     <div className="mt-4 rounded-2xl bg-muted p-3 text-sm">
                       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        Latest done summary
+                        Latest result note
                       </p>
                       <p className="mt-1 font-medium">{agent.latestDone.name}</p>
                       <p className="mt-1 line-clamp-2 text-muted-foreground">
@@ -227,14 +233,14 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Blockers</CardTitle>
-              <CardDescription>Items that need help first.</CardDescription>
+              <CardTitle>Attention queue</CardTitle>
+              <CardDescription>Blocked, dependency-ready, QA, and fix-needed tasks.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {blockedTasks.length ? (
-                blockedTasks.slice(0, 5).map((task) => <TaskSummary key={task.id} task={task} />)
+              {attentionTasks.length ? (
+                attentionTasks.slice(0, 6).map((task) => <TaskSummary key={task.id} task={task} />)
               ) : (
-                <EmptyMessage title="No blockers" text="Nothing is blocked right now." />
+                <EmptyMessage title="No attention items" text="No blockers, ready dependency work, or obvious QA/fix tasks." />
               )}
             </CardContent>
           </Card>
@@ -242,13 +248,13 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           <Card>
             <CardHeader>
               <CardTitle>Recently completed</CardTitle>
-              <CardDescription>Done cards with summaries for review.</CardDescription>
+              <CardDescription>Done cards with agent result notes for review.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {recentDone.length ? (
                 recentDone.map((task) => <TaskSummary key={task.id} task={task} />)
               ) : (
-                <EmptyMessage title="No done summaries" text="Completed task notes will appear here." />
+                <EmptyMessage title="No result notes" text="Completed task result notes and handoffs will appear here." />
               )}
             </CardContent>
           </Card>
@@ -340,6 +346,12 @@ function TaskSummary({ task }: { task: ProjectTask }) {
           {statusLabels.get(task.status)}
         </Badge>
       </div>
+      {task.dependencies.length ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Depends on {task.dependencies.length} task{task.dependencies.length === 1 ? "" : "s"}
+          {task.isDependencyReady ? " · ready" : ""}
+        </p>
+      ) : null}
       {task.blockingReason ? (
         <p className="mt-2 line-clamp-3 text-destructive">{task.blockingReason}</p>
       ) : task.note ? (

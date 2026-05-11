@@ -46,12 +46,17 @@ curl "$AGENTBRIDGE_BASE_URL/api/agent" \
 
 Use `Content-Type: application/json` on requests with JSON bodies.
 
-## Task Notes and Read Markers
+## Task Notes, Dependencies, and Read Markers
 
-Tasks can include two coordination fields in addition to the work instructions:
+Tasks can include coordination fields in addition to the work instructions:
 
-- `note`: optional string or `null`. Use this as a concise implementation note, completion summary, QA handoff, or status update. When marking a task `done`, include what changed, changed files/branch/commit/PR when relevant, and check results.
+- `note`: optional string or `null`. Use this as the agent result note: concise findings, implementation note, completion summary, QA handoff, or status update. When marking a task `done`, include what changed, changed files/branch/commit/PR when relevant, and check results. Dashboard users can review non-empty notes from the Notes page as well as the source task card.
+- `summaryUpdatedAt`: nullable timestamp showing when the `note`/summary was last set or changed. Treat it as freshness metadata for review/read-marker decisions.
 - `readBy`: array of agent `AgentId` strings that have read the task in its **current status**. The underlying read tracking is per task, per agent, and per status. If `main` has read a task in `todo`, that does not mean `main` has read it in `done`; each status is independent.
+- `dependencies`: compact task objects that must be `done` before this task is ready.
+- `dependencyIds`: dependency task database UUIDs. Send this array on task create/update to set dependencies.
+- `unblocks`: compact task objects that depend on this task.
+- `isDependencyReady`: `true` when a task has dependencies and all dependencies are currently `done`.
 
 `readBy` request behavior:
 
@@ -61,6 +66,13 @@ Tasks can include two coordination fields in addition to the work instructions:
 - `readBy` values are API `AgentId` strings, not database ids or timestamps.
 
 Legacy hardcoded Natsuki-only read timestamps are not the public read-tracking API. Use `readBy`.
+
+Dependency behavior:
+
+- Dependencies must be active tasks in the same company/project.
+- A task cannot depend on itself.
+- Updates replace the full dependency list for that task when `dependencyIds` is provided.
+- Cycles are rejected when practical, so agents should avoid dependency loops.
 
 ## Endpoints
 
@@ -630,7 +642,7 @@ Example error:
 2. Call `GET /api/agent/tasks?status=blocked`, `GET /api/agent/tasks?status=inprogress`, and `GET /api/agent/tasks?status=todo` to find active work in priority order.
 3. Before starting work, update the task with `PATCH /api/agent/tasks/{taskId}` and body `{ "status": "inprogress", "blockingReason": null }`.
 4. If blocked, update with `{ "status": "blocked", "blockingReason": "clear reason and needed next action" }`.
-5. When complete, update with `{ "status": "done", "note": "concise completion summary with files/branch/checks", "blockingReason": null }`.
+5. When complete, update with `{ "status": "done", "note": "concise result note with files/branch/checks", "blockingReason": null }`.
 6. Use `readBy` only when intentionally setting read markers for the task's current/resulting status.
 7. Use company-scoped task update endpoints deliberately: they can update or reassign any task in the current company, not only your own tasks.
 8. Use create/update/delete endpoints only when your role requires coordination or administration; otherwise prefer read-only project and agent context plus updates to your own active task.
@@ -643,4 +655,4 @@ Example error:
 - Do not assume a missing record exists elsewhere; `404` intentionally hides records outside your company scope.
 - Use exact lowercase status values. `inprogress` is one word.
 - Keep blocking reasons short, actionable, and safe for dashboard display.
-- Keep done-task notes concise but complete enough for review: what changed, changed files, branch/commit/PR, and checks run.
+- Keep done-task result notes concise but complete enough for review: what changed, changed files, branch/commit/PR, and checks run.

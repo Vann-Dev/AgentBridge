@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
 import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
+import { hasDependencyCycle, serializeTaskDependencies } from "@/lib/api/task-dependencies"
 import { badRequest, notFound, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -22,6 +23,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     status?: unknown
     note?: unknown
     readByAgentIds?: unknown
+    dependencyIds?: unknown
     blockingReason?: unknown
   } | null
   const assignedAgentId =
@@ -30,13 +32,19 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const job = typeof body?.job === "string" ? body.job.trim() : undefined
   const status = typeof body?.status === "string" ? body.status : undefined
   const note = typeof body?.note === "string" ? body.note.trim() : undefined
-  const readByAgentIds = parseReadByAgentIds(body?.readByAgentIds)
+  const readByAgentIds = parseStringIds(body?.readByAgentIds)
   const hasReadByAgentIds = body?.readByAgentIds !== undefined
+  const dependencyIds = parseStringIds(body?.dependencyIds)
+  const hasDependencyIds = body?.dependencyIds !== undefined
   const blockingReason =
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : undefined
 
   if (hasReadByAgentIds && !readByAgentIds) {
     return badRequest("Invalid read markers.")
+  }
+
+  if (hasDependencyIds && !dependencyIds) {
+    return badRequest("Invalid dependency tasks.")
   }
 
   if (status && !statuses.includes(status as Status)) {
@@ -54,6 +62,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     !status &&
     note === undefined &&
     !hasReadByAgentIds &&
+    !hasDependencyIds &&
     blockingReason === undefined
   ) {
     return badRequest("No task changes provided.")
@@ -77,6 +86,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       projectId: true,
       project: { select: { companyId: true } },
       assigned: { select: { name: true } },
+      blockedByDependencies: { select: { dependencyTaskId: true } },
     },
   })
 
@@ -98,6 +108,35 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     if (!agent) {
       return badRequest("Assigned agent not found.")
+    }
+  }
+
+  if (hasDependencyIds && dependencyIds?.includes(task.id)) {
+    return badRequest("Task cannot depend on itself.")
+  }
+
+  if (hasDependencyIds && dependencyIds?.length) {
+    const dependencyTasks = await prisma.task.findMany({
+      where: {
+        id: { in: dependencyIds },
+        projectId: task.projectId,
+        archivedAt: null,
+        project: { company: { userId: session.userId } },
+      },
+      select: { id: true },
+    })
+
+    if (dependencyTasks.length !== dependencyIds.length) {
+      return badRequest("Dependency task not found.")
+    }
+
+    const projectDependencies = await prisma.taskDependency.findMany({
+      where: { blockedTask: { projectId: task.projectId, archivedAt: null } },
+      select: { blockedTaskId: true, dependencyTaskId: true },
+    })
+
+    if (hasDependencyCycle(projectDependencies, task.id, dependencyIds)) {
+      return badRequest("Task dependencies cannot create a cycle.")
     }
   }
 
@@ -159,6 +198,19 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       await tx.taskReadMarker.deleteMany({ where: { taskId: task.id, status: nextStatus } })
     }
 
+    if (hasDependencyIds) {
+      await tx.taskDependency.deleteMany({ where: { blockedTaskId: task.id } })
+
+      if (dependencyIds?.length) {
+        await tx.taskDependency.createMany({
+          data: dependencyIds.map((dependencyTaskId) => ({
+            blockedTaskId: task.id,
+            dependencyTaskId,
+          })),
+        })
+      }
+    }
+
     return tx.task.update({
       where: { id: task.id },
       data: {
@@ -166,7 +218,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         ...(name ? { name } : {}),
         ...(job ? { job } : {}),
         ...(status ? { status: status as Status } : {}),
-        ...(note !== undefined ? { note: note || null } : {}),
+        ...(note !== undefined
+          ? { note: note || null, summaryUpdatedAt: note ? new Date() : null }
+          : {}),
         ...(blockingReason !== undefined ? { blockingReason: blockingReason || null } : {}),
       },
       include: {
@@ -192,6 +246,30 @@ export async function PATCH(request: Request, { params }: RouteContext) {
           },
           orderBy: { readAt: "desc" },
         },
+        blockedByDependencies: {
+          select: {
+            dependencyTask: {
+              select: {
+                id: true,
+                name: true,
+                status: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+        unblocksDependencies: {
+          select: {
+            blockedTask: {
+              select: {
+                id: true,
+                name: true,
+                status: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
       },
     })
   })
@@ -206,24 +284,25 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       job && job !== task.job && "job",
       status && status !== task.status && `status (${task.status} → ${status})`,
       assignedAgentId && assignedAgentId !== task.assignedAgentId && "assignee",
-      noteChanged && "note",
+      noteChanged && "result note",
       hasReadByAgentIds && "read markers",
+      hasDependencyIds && "dependencies",
       blockingReason !== undefined &&
         (blockingReason || null) !== task.blockingReason &&
         "blocking reason",
     ]),
   })
 
-  return NextResponse.json({ statusCode: 200, task: updatedTask })
+  return NextResponse.json({ statusCode: 200, task: serializeTaskDependencies(updatedTask) })
 }
 
-function parseReadByAgentIds(value: unknown) {
+function parseStringIds(value: unknown) {
   if (value === undefined) return []
   if (!Array.isArray(value)) return null
 
-  const agentIds = value.filter((item): item is string => typeof item === "string" && Boolean(item))
+  const ids = value.filter((item): item is string => typeof item === "string" && Boolean(item))
 
-  return agentIds.length === value.length ? Array.from(new Set(agentIds)) : null
+  return ids.length === value.length ? Array.from(new Set(ids)) : null
 }
 
 export async function DELETE(_request: Request, { params }: RouteContext) {

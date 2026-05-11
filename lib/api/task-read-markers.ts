@@ -1,3 +1,4 @@
+import { serializeTaskDependencies, type TaskDependencyPayload } from "@/lib/api/task-dependencies"
 import { Status } from "@/generated/prisma/enums"
 
 type ReadMarker = {
@@ -8,13 +9,13 @@ type ReadMarker = {
   }
 }
 
-export function serializeTaskReadMarkers<T extends { status: Status; readMarkers: ReadMarker[] }>(
-  task: T
-) {
+export function serializeTaskReadMarkers<
+  T extends { status: Status; readMarkers: ReadMarker[] } & Partial<TaskDependencyPayload>,
+>(task: T) {
   const { readMarkers, ...rest } = task
 
   return {
-    ...rest,
+    ...serializeTaskDependencies(rest),
     readBy: readMarkers
       .filter((marker) => marker.status === task.status)
       .map((marker) => marker.agent.AgentId),

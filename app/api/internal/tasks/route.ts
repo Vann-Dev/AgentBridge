@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
 import { createAuditLog } from "@/lib/api/audit-log"
+import { serializeTaskDependencies } from "@/lib/api/task-dependencies"
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
     status?: unknown
     note?: unknown
     readByAgentIds?: unknown
+    dependencyIds?: unknown
     blockingReason?: unknown
   } | null
 
@@ -40,10 +42,15 @@ export async function POST(request: Request) {
     return badRequest("Invalid task status.")
   }
 
-  const readByAgentIds = parseReadByAgentIds(body?.readByAgentIds)
+  const readByAgentIds = parseStringIds(body?.readByAgentIds)
+  const dependencyIds = parseStringIds(body?.dependencyIds)
 
   if (!readByAgentIds) {
     return badRequest("Invalid read markers.")
+  }
+
+  if (!dependencyIds) {
+    return badRequest("Invalid dependency tasks.")
   }
 
   const project = await prisma.project.findFirst({
@@ -57,6 +64,10 @@ export async function POST(request: Request) {
     select: {
       id: true,
       companyId: true,
+      tasks: {
+        where: { id: { in: dependencyIds }, archivedAt: null },
+        select: { id: true },
+      },
       company: {
         select: {
           agents: {
@@ -76,6 +87,10 @@ export async function POST(request: Request) {
     return badRequest("Read marker agent not found.")
   }
 
+  if (project.tasks.length !== dependencyIds.length) {
+    return badRequest("Dependency task not found.")
+  }
+
   const task = await prisma.task.create({
     data: {
       projectId,
@@ -84,12 +99,16 @@ export async function POST(request: Request) {
       job,
       status: status as Status,
       note: note || null,
+      summaryUpdatedAt: note ? new Date() : null,
       blockingReason: blockingReason || null,
       readMarkers: {
         create: readByAgentIds.map((agentId) => ({
           agentId,
           status: status as Status,
         })),
+      },
+      blockedByDependencies: {
+        create: dependencyIds.map((dependencyTaskId) => ({ dependencyTaskId })),
       },
     },
     include: {
@@ -114,6 +133,28 @@ export async function POST(request: Request) {
           },
         },
       },
+      blockedByDependencies: {
+        select: {
+          dependencyTask: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+            },
+          },
+        },
+      },
+      unblocksDependencies: {
+        select: {
+          blockedTask: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+            },
+          },
+        },
+      },
     },
   })
 
@@ -122,17 +163,17 @@ export async function POST(request: Request) {
     action: "task.created",
     target: { type: "task", id: task.id, name: task.name },
     actor: { type: "user", id: session.userId, name: session.username },
-    details: `Created as ${task.status} and assigned to ${task.assigned.name}.`,
+    details: `Created as ${task.status} and assigned to ${task.assigned.name}${dependencyIds.length ? ` with ${dependencyIds.length} dependencies` : ""}.`,
   })
 
-  return NextResponse.json({ statusCode: 201, task }, { status: 201 })
+  return NextResponse.json({ statusCode: 201, task: serializeTaskDependencies(task) }, { status: 201 })
 }
 
-function parseReadByAgentIds(value: unknown) {
+function parseStringIds(value: unknown) {
   if (value === undefined) return []
   if (!Array.isArray(value)) return null
 
-  const agentIds = value.filter((item): item is string => typeof item === "string" && Boolean(item))
+  const ids = value.filter((item): item is string => typeof item === "string" && Boolean(item))
 
-  return agentIds.length === value.length ? Array.from(new Set(agentIds)) : null
+  return ids.length === value.length ? Array.from(new Set(ids)) : null
 }

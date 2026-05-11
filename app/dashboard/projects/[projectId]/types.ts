@@ -17,13 +17,24 @@ export type ProjectTask = {
   job: string
   status: Status
   note: string | null
+  summaryUpdatedAt: string | Date | null
   readMarkers: TaskReadMarker[]
   blockingReason: string | null
+  dependencies: TaskDependency[]
+  dependencyIds: string[]
+  unblocks: TaskDependency[]
+  isDependencyReady: boolean
   assigned: {
     id: string
     name: string
     position: string
   }
+}
+
+export type TaskDependency = {
+  id: string
+  name: string
+  status: Status
 }
 
 export type ProjectAgent = {

@@ -1,6 +1,8 @@
 "use client"
 
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+
+import { Status } from "@/generated/prisma/enums"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,6 +26,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiJson } from "@/lib/api/client"
 
 
+type TaskOption = {
+  id: string
+  name: string
+  status: Status
+}
+
 type AgentOption = {
   id: string
   name: string
@@ -38,6 +46,11 @@ type CreateTaskDialogProps = {
 
 export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDialogProps) {
   const queryClient = useQueryClient()
+  const projectQuery = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => apiJson<{ project: { tasks: TaskOption[] } }>(`/api/internal/projects/${projectId}`),
+  })
+  const dependencyOptions = projectQuery.data?.project.tasks ?? []
   const mutation = useMutation({
     mutationFn: (payload: {
       projectId: string
@@ -48,6 +61,7 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
       note: string
       readByAgentIds: string[]
       blockingReason: string
+      dependencyIds: string[]
     }) =>
       apiJson("/api/internal/tasks", {
         method: "POST",
@@ -71,6 +85,7 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
       note: String(formData.get("note") ?? ""),
       readByAgentIds: formData.getAll("readByAgentIds").map(String),
       blockingReason: String(formData.get("blockingReason") ?? ""),
+      dependencyIds: formData.getAll("dependencyIds").map(String),
     })
   }
 
@@ -127,14 +142,38 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-3 rounded-2xl border p-3 text-sm">
+            <div>
+              <Label>Dependencies</Label>
+              <p className="text-muted-foreground">Select tasks that must be done before this task is ready.</p>
+            </div>
+            {dependencyOptions.length ? (
+              <div className="grid max-h-44 gap-2 overflow-auto pr-1 sm:grid-cols-2">
+                {dependencyOptions.map((task) => (
+                  <label key={task.id} className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2">
+                    <input name="dependencyIds" type="checkbox" value={task.id} className="mt-1 size-4 accent-primary" />
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">{task.name}</span>
+                      <span className="block text-xs text-muted-foreground">{task.status}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl bg-muted px-3 py-2 text-muted-foreground">No existing tasks are available.</p>
+            )}
+          </div>
           <div className="space-y-2">
-            <Label htmlFor="task-note">Done summary / note</Label>
+            <Label htmlFor="task-note">Agent result note / done summary</Label>
             <Textarea
               id="task-note"
               name="note"
-              placeholder="Summarize what changed when this task is done"
-              rows={3}
+              placeholder="Share the result, handoff, changed files, branch/PR, and checks when done."
+              rows={4}
             />
+            <p className="text-xs text-muted-foreground">
+              Optional. Notes appear on task cards and the Notes page for review and handoff.
+            </p>
           </div>
           <div className="space-y-3 rounded-2xl border p-3 text-sm">
             <div>

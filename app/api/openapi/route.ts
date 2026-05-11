@@ -103,16 +103,49 @@ const openApiDocument = swaggerJsdoc({
             name: { type: "string" },
             job: { type: "string" },
             status: { $ref: "#/components/schemas/Status" },
-            note: { type: "string", nullable: true },
+            note: {
+              type: "string",
+              nullable: true,
+              description: "Agent result note, completion summary, or handoff text shown on task cards and the dashboard Notes page.",
+            },
+            summaryUpdatedAt: { type: "string", format: "date-time", nullable: true },
             readBy: {
               type: "array",
               items: { type: "string" },
               description: "AgentId values that have read this task in its current status.",
             },
             blockingReason: { type: "string", nullable: true },
+            dependencies: {
+              type: "array",
+              items: { $ref: "#/components/schemas/TaskDependencySummary" },
+              description: "Tasks that must be done before this task is ready.",
+            },
+            dependencyIds: {
+              type: "array",
+              items: { type: "string", format: "uuid" },
+              description: "IDs of dependency tasks for write requests and compact reads.",
+            },
+            unblocks: {
+              type: "array",
+              items: { $ref: "#/components/schemas/TaskDependencySummary" },
+              description: "Tasks that list this task as a dependency.",
+            },
+            isDependencyReady: {
+              type: "boolean",
+              description: "True when this task has dependencies and all dependencies are done.",
+            },
             archivedAt: { type: "string", format: "date-time", nullable: true },
           },
-          required: ["id", "name", "job", "status", "note", "readBy", "blockingReason", "archivedAt"],
+          required: ["id", "name", "job", "status", "note", "summaryUpdatedAt", "readBy", "blockingReason", "dependencies", "dependencyIds", "unblocks", "isDependencyReady", "archivedAt"],
+        },
+        TaskDependencySummary: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            name: { type: "string" },
+            status: { $ref: "#/components/schemas/Status" },
+          },
+          required: ["id", "name", "status"],
         },
         TaskWithProject: {
           allOf: [

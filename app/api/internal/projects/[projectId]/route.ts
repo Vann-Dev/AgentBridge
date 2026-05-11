@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
+import { serializeTaskDependencies } from "@/lib/api/task-dependencies"
 import { badRequest, notFound, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -59,6 +60,30 @@ export async function GET(_request: Request, { params }: RouteContext) {
             },
             orderBy: { readAt: "desc" },
           },
+          blockedByDependencies: {
+            select: {
+              dependencyTask: {
+                select: {
+                  id: true,
+                  name: true,
+                  status: true,
+                },
+              },
+            },
+            orderBy: { createdAt: "asc" },
+          },
+          unblocksDependencies: {
+            select: {
+              blockedTask: {
+                select: {
+                  id: true,
+                  name: true,
+                  status: true,
+                },
+              },
+            },
+            orderBy: { createdAt: "asc" },
+          },
         },
         orderBy: { name: "asc" },
       },
@@ -69,7 +94,13 @@ export async function GET(_request: Request, { params }: RouteContext) {
     return notFound("Project not found.")
   }
 
-  return NextResponse.json({ statusCode: 200, project })
+  return NextResponse.json({
+    statusCode: 200,
+    project: {
+      ...project,
+      tasks: project.tasks.map(serializeTaskDependencies),
+    },
+  })
 }
 
 export async function PATCH(request: Request, { params }: RouteContext) {

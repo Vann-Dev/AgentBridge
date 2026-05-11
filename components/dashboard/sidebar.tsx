@@ -1,6 +1,14 @@
 import type { ComponentType } from "react"
 import Link from "next/link"
-import { BotIcon, Building2Icon, ClipboardListIcon, HomeIcon, ScrollTextIcon, SettingsIcon } from "lucide-react"
+import {
+  BotIcon,
+  Building2Icon,
+  ClipboardListIcon,
+  HomeIcon,
+  NotebookTextIcon,
+  ScrollTextIcon,
+  SettingsIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ChangePasswordDialog } from "@/components/dashboard/change-password-dialog"
@@ -16,7 +24,7 @@ type Company = {
 type DashboardSidebarProps = {
   companies: Company[]
   activeCompany: Company | null
-  activePath: "overview" | "agents" | "projects" | "audit-logs" | "settings"
+  activePath: "overview" | "agents" | "projects" | "notes" | "audit-logs" | "settings"
   username: string
 }
 
@@ -49,6 +57,12 @@ export function DashboardSidebar({
       href: dashboardHref(activeCompany?.id ?? null, "/projects"),
       key: "projects",
       icon: ClipboardListIcon,
+    },
+    {
+      label: "Notes",
+      href: dashboardHref(activeCompany?.id ?? null, "/notes"),
+      key: "notes",
+      icon: NotebookTextIcon,
     },
     {
       label: "Audit Log",
