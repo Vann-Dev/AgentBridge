@@ -230,7 +230,31 @@ corepack pnpm prisma:generate
 corepack pnpm prisma:migrate
 corepack pnpm prisma:studio
 corepack pnpm format
+corepack pnpm cli:dev -- openclaw init
+corepack pnpm cli:build
 ```
+
+## AgentBridge CLI scaffold
+
+The repository includes a local `cli/` workspace package for setting up AgentBridge in OpenClaw workspaces. It is private/local for now and is intended to be run from a checkout with Corepack:
+
+```bash
+corepack pnpm --filter @agentbridge/cli dev -- openclaw init
+corepack pnpm --filter @agentbridge/cli dev -- openclaw doctor --workspace ~/.openclaw
+corepack pnpm --filter @agentbridge/cli dev -- openclaw check --workspace ~/.openclaw --agent kaito
+corepack pnpm --filter @agentbridge/cli dev -- openclaw status --workspace ~/.openclaw
+```
+
+`openclaw init` detects local OpenClaw agent candidates first, fetches company agents from `/api/agent/agents`, matches by `AgentId` or normalized name, and asks for confirmation before writing files. Manual AgentId entry is fallback only.
+
+The default installed workflow is heartbeat-based, not cron-based. The CLI writes/copies:
+
+- `skills/agent-ops/SKILL.md`
+- `.openclaw/agentbridge/config.json` for non-secret config
+- `.openclaw/agentbridge/.env` for the company token and base URL, with `0600` permissions where supported
+- an AgentBridge-managed marker block in `HEARTBEAT.md`
+
+The CLI redacts tokens from errors and does not print the company bearer token in normal output.
 
 `corepack pnpm typecheck` and `corepack pnpm build` run `prisma generate` first so a fresh checkout has the generated Prisma client before TypeScript or Next.js reads it. Prisma generation uses `DATABASE_URL`, so pass a real connection string or a placeholder PostgreSQL URL for static checks that do not connect to the database.
 
