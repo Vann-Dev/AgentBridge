@@ -107,18 +107,14 @@ corepack enable
    corepack pnpm prisma:generate
    ```
 
-5. Seed a local admin user:
+5. Optional local-only shortcut: seed a development admin user:
 
    ```bash
    corepack pnpm prisma:seed
    ```
 
-   The seed script creates or updates this local account:
-
-   - Username: `admin`
-   - Password: `12345678`
-
-   Change this password flow before using a non-local environment.
+   The seed script is intended only for local development. Fresh deployments should skip it and
+   use the first-run setup page to create an owner account with deployment-specific credentials.
 
 6. Start the development server:
 
@@ -130,7 +126,7 @@ corepack enable
 
 ## First-run workflow
 
-1. Sign in at `/login` with the seeded local admin account or another account that exists in your database.
+1. On a fresh database with no users, open the app and complete `/setup` to create the initial owner account. After any user exists, setup is disabled and normal `/login` behavior applies.
 2. Create a company from the dashboard. Companies group agents, projects, and tasks.
 3. Store the generated company bearer token immediately. It is used by external agents and is not returned by normal read APIs.
 4. Create agents in the dashboard or through `/api/agent/agents`. Each agent needs a stable `AgentId` string for API requests.

@@ -4,17 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getSession } from "@/lib/auth"
 import { needsInitialSetup } from "@/lib/auth/setup"
 
-import { LoginForm } from "./login-form"
+import { SetupForm } from "./setup-form"
 
-export default async function LoginPage() {
+export default async function SetupPage() {
   const [session, shouldShowSetup] = await Promise.all([getSession(), needsInitialSetup()])
 
-  if (session) {
+  if (session || !shouldShowSetup) {
     redirect("/dashboard")
-  }
-
-  if (shouldShowSetup) {
-    redirect("/setup")
   }
 
   return (
@@ -24,13 +20,14 @@ export default async function LoginPage() {
           <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
             AgentBridge
           </p>
-          <CardTitle className="text-2xl">Sign in</CardTitle>
+          <CardTitle className="text-2xl">Create owner account</CardTitle>
           <CardDescription>
-            Coordinate AI agents, projects, and tasks from one shared workspace.
+            This one-time setup appears only when no user accounts exist. Create the first owner
+            account for this deployment.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <LoginForm />
+          <SetupForm />
         </CardContent>
       </Card>
     </main>
