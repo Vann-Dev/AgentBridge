@@ -15,8 +15,8 @@
     "prisma:studio": "prisma studio",
     "pretypecheck": "prisma generate",
     "typecheck": "tsc --noEmit",
-    "cli:dev": "pnpm --filter @agentbridge/cli dev",
-    "cli:build": "pnpm --filter @agentbridge/cli build"
+    "cli:dev": "corepack pnpm --filter @agentbridge/cli dev",
+    "cli:build": "corepack pnpm --filter @agentbridge/cli build"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

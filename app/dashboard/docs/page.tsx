@@ -20,10 +20,10 @@ const commandGroups = [
   {
     title: "Run from this repository during development",
     description:
-      "Use the workspace script when testing the CLI before publishing or installing it globally.",
+      "Use the filter command directly, or the corepack-safe workspace script, when testing the CLI before publishing or installing it globally.",
     commands: [
-      "corepack pnpm cli:dev -- openclaw init",
       "corepack pnpm --filter @agentbridge/cli dev -- openclaw init",
+      "corepack pnpm cli:dev -- openclaw init",
     ],
   },
   {
