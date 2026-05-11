@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { MoreHorizontalIcon } from "lucide-react"
 
@@ -12,9 +13,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,30 +30,74 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { apiJson } from "@/lib/api/client"
 
+type AgentRow = {
+  id: string
+  AgentId: string
+  name: string
+  description: string
+  position: string
+}
+
 type AgentRowActionsProps = {
-  agent: {
-    id: string
-    name: string
-  }
+  agent: AgentRow
   companyId: string | null
 }
 
 export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const queryClient = useQueryClient()
+
+  function invalidateAgentData() {
+    queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
+    queryClient.invalidateQueries({
+      queryKey: ["dashboard-summary", companyId],
+    })
+    queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+    queryClient.invalidateQueries({ queryKey: ["project"] })
+  }
+
+  const editMutation = useMutation({
+    mutationFn: (payload: {
+      AgentId: string
+      name: string
+      description: string
+      position: string
+    }) =>
+      apiJson<{ agent: AgentRow }>(`/api/internal/agents/${agent.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      setEditOpen(false)
+      invalidateAgentData()
+    },
+  })
   const deleteMutation = useMutation({
     mutationFn: () =>
       apiJson(`/api/internal/agents/${agent.id}`, {
         method: "DELETE",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["project"] })
+      setDeleteOpen(false)
+      invalidateAgentData()
     },
   })
+
+  function editAction(formData: FormData) {
+    editMutation.mutate({
+      AgentId: String(formData.get("AgentId") ?? ""),
+      name: String(formData.get("name") ?? ""),
+      description: String(formData.get("description") ?? ""),
+      position: String(formData.get("position") ?? ""),
+    })
+  }
+
   return (
     <div className="flex justify-end gap-2">
       <DropdownMenu>
@@ -59,38 +110,111 @@ export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>{agent.name}</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <DropdownMenuItem variant="destructive" onSelect={(event) => event.preventDefault()}>
-                Delete agent
-              </DropdownMenuItem>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete {agent.name}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This removes the agent. The company bearer token remains valid for other agents.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              {deleteMutation.error ? (
-                <p className="text-sm text-destructive">{deleteMutation.error.message}</p>
-              ) : null}
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <form action={() => deleteMutation.mutate()}>
-                  <AlertDialogAction
-                    disabled={deleteMutation.isPending}
-                    variant="destructive"
-                    type="submit"
-                  >
-                    {deleteMutation.isPending ? "Deleting..." : "Delete"}
-                  </AlertDialogAction>
-                </form>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <DropdownMenuItem onSelect={() => setEditOpen(true)}>
+            Edit agent
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            variant="destructive"
+            onSelect={() => setDeleteOpen(true)}
+          >
+            Delete agent
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit agent</DialogTitle>
+            <DialogDescription>
+              Update this dashboard agent. AgentId is the stable API identity
+              used in the AgentId header, so change it only when external
+              clients can be updated too.
+            </DialogDescription>
+          </DialogHeader>
+          <form action={editAction} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor={`agent-api-id-${agent.id}`}>AgentId</Label>
+              <Input
+                id={`agent-api-id-${agent.id}`}
+                name="AgentId"
+                defaultValue={agent.AgentId}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Must be unique. Existing API clients using the old AgentId
+                header will need to switch.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`agent-name-${agent.id}`}>Name</Label>
+              <Input
+                id={`agent-name-${agent.id}`}
+                name="name"
+                defaultValue={agent.name}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`agent-position-${agent.id}`}>Position</Label>
+              <Input
+                id={`agent-position-${agent.id}`}
+                name="position"
+                defaultValue={agent.position}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`agent-description-${agent.id}`}>
+                Description
+              </Label>
+              <Textarea
+                id={`agent-description-${agent.id}`}
+                name="description"
+                defaultValue={agent.description}
+                rows={4}
+              />
+            </div>
+            {editMutation.error ? (
+              <p className="text-sm text-destructive">
+                {editMutation.error.message}
+              </p>
+            ) : null}
+            <Button disabled={editMutation.isPending} type="submit">
+              {editMutation.isPending ? "Saving..." : "Save changes"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {agent.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the agent. The company bearer token remains valid for
+              other agents.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteMutation.error ? (
+            <p className="text-sm text-destructive">
+              {deleteMutation.error.message}
+            </p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <form action={() => deleteMutation.mutate()}>
+              <AlertDialogAction
+                disabled={deleteMutation.isPending}
+                variant="destructive"
+                type="submit"
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </form>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
