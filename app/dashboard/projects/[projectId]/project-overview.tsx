@@ -17,13 +17,24 @@ import {
 import { apiJson } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
+type TaskReadMarker = {
+  agentId: string
+  status: Status
+  readAt: string | Date
+  agent: {
+    id: string
+    AgentId: string
+    name: string
+  }
+}
+
 type ProjectOverviewTask = {
   id: string
   name: string
   job: string
   status: Status
   note: string | null
-  natsukiReadAt: string | Date | null
+  readMarkers: TaskReadMarker[]
   blockingReason: string | null
   assigned: {
     id: string
@@ -371,6 +382,16 @@ function TaskSummary({ task }: { task: ProjectOverviewTask }) {
       ) : (
         <p className="mt-2 line-clamp-2 text-muted-foreground">{task.job}</p>
       )}
+      {task.status === Status.done && task.note ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {task.readMarkers.some((marker) => marker.status === task.status)
+            ? `Read by ${task.readMarkers
+                .filter((marker) => marker.status === task.status)
+                .map((marker) => marker.agent.name)
+                .join(", ")}`
+            : "Unread summary"}
+        </p>
+      ) : null}
     </div>
   )
 }
