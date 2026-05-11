@@ -25,6 +25,9 @@ export async function POST(_request: Request, { params }: RouteContext) {
     },
     select: {
       id: true,
+      note: true,
+      summaryUpdatedAt: true,
+      taskUpdatedAt: true,
       project: { select: { companyId: true } },
     },
   })
@@ -39,20 +42,32 @@ export async function POST(_request: Request, { params }: RouteContext) {
     return notFound("Review reader agent not found.")
   }
 
-  await prisma.taskReadMarker.upsert({
-    where: {
-      taskId_agentId_status: {
+  const readAt = new Date()
+
+  await prisma.$transaction(async (tx) => {
+    if (!task.summaryUpdatedAt) {
+      await tx.task.update({
+        where: { id: task.id },
+        data: { summaryUpdatedAt: task.taskUpdatedAt },
+      })
+    }
+
+    await tx.taskReadMarker.upsert({
+      where: {
+        taskId_agentId_status: {
+          taskId: task.id,
+          agentId: reviewReader.id,
+          status: Status.done,
+        },
+      },
+      create: {
         taskId: task.id,
         agentId: reviewReader.id,
         status: Status.done,
+        readAt,
       },
-    },
-    create: {
-      taskId: task.id,
-      agentId: reviewReader.id,
-      status: Status.done,
-    },
-    update: { readAt: new Date() },
+      update: { readAt },
+    })
   })
 
   return NextResponse.json({
