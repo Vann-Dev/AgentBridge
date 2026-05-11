@@ -34,6 +34,7 @@ const statuses = Object.values(Status)
  *                   job: "Implement the responsive landing page"
  *                   status: "todo"
  *                   note: null
+ *                   summaryUpdatedAt: null
  *                   readBy: []
  *                   blockingReason: null
  *                   archivedAt: null
@@ -81,6 +82,7 @@ export async function GET(request: NextRequest) {
       job: true,
       status: true,
       note: true,
+      summaryUpdatedAt: true,
       taskUpdatedAt: true,
       taskUpdatedById: true,
       taskUpdatedByName: true,
@@ -166,6 +168,7 @@ export async function GET(request: NextRequest) {
  *             job: "Implement the responsive landing page"
  *             status: "todo"
  *             note: "Completed responsive layout and deployment wiring."
+ *             summaryUpdatedAt: "2026-05-11T08:40:00.000Z"
  *             readBy: []
  *             blockingReason: null
  *     responses:
@@ -181,6 +184,7 @@ export async function GET(request: NextRequest) {
  *                 job: "Implement the responsive landing page"
  *                 status: "todo"
  *                 note: "Completed responsive layout and deployment wiring."
+ *                 summaryUpdatedAt: "2026-05-11T08:40:00.000Z"
  *                 readBy: []
  *                 blockingReason: null
  *                 taskUpdatedAt: "2026-05-11T08:40:00.000Z"
@@ -279,6 +283,7 @@ export async function POST(request: NextRequest) {
       job,
       status: status as Status,
       note: note || null,
+      summaryUpdatedAt: note ? new Date() : null,
       blockingReason: blockingReason || null,
       ...agentTaskUpdater(agent),
       readMarkers: {
@@ -294,6 +299,7 @@ export async function POST(request: NextRequest) {
       job: true,
       status: true,
       note: true,
+      summaryUpdatedAt: true,
       blockingReason: true,
       archivedAt: true,
       taskUpdatedAt: true,

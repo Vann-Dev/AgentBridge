@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { findReviewReader, getReviewReaderLabel } from "@/lib/api/review-reader"
 import { getDashboardContext } from "@/lib/dashboard/companies"
 import { prisma } from "@/lib/prisma"
 
@@ -25,7 +26,9 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
     redirect("/dashboard?createCompany=1")
   }
 
-  const notes = await prisma.task.findMany({
+  const reviewReader = await findReviewReader(activeCompany.id)
+  const notes = reviewReader
+    ? await prisma.task.findMany({
     where: {
       archivedAt: null,
       note: { not: null },
@@ -56,12 +59,13 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
       readMarkers: {
         where: {
           status: "done",
-          agent: { AgentId: "main" },
+          agentId: reviewReader.id,
         },
         select: { readAt: true },
       },
     },
-  })
+      })
+    : []
   const unreadNotes = notes.filter((task) => {
     const readAt = task.readMarkers[0]?.readAt
 
@@ -79,12 +83,14 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
         <CardHeader>
           <CardTitle className="text-2xl">Notes</CardTitle>
           <CardDescription>
-            Review unread done summaries. Mark reviewed cards disappear from this queue for Natsuki/main.
+            Review unread done summaries. Mark reviewed cards disappear from this queue for{" "}
+            {getReviewReaderLabel(reviewReader)}.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <NoteList
             companyId={activeCompany.id}
+            reviewReader={reviewReader}
             initialNotes={unreadNotes.map((task) => ({
               id: task.id,
               name: task.name,

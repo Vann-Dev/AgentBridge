@@ -34,6 +34,7 @@ type RouteContext = {
  *                     job: "Implement the responsive landing page"
  *                     status: "done"
  *                     note: "Completed responsive layout and deployment wiring."
+ *                     summaryUpdatedAt: "2026-05-11T08:40:00.000Z"
  *                     readBy: []
  *                     blockingReason: null
  *                     archivedAt: null
@@ -78,25 +79,26 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
           job: true,
           status: true,
           note: true,
+          summaryUpdatedAt: true,
           taskUpdatedAt: true,
           taskUpdatedById: true,
           taskUpdatedByName: true,
           taskUpdatedByType: true,
           readMarkers: {
-        select: {
-          agentId: true,
-          status: true,
-          readAt: true,
-          agent: {
             select: {
-              id: true,
-              AgentId: true,
-              name: true,
+              agentId: true,
+              status: true,
+              readAt: true,
+              agent: {
+                select: {
+                  id: true,
+                  AgentId: true,
+                  name: true,
+                },
+              },
             },
+            orderBy: { readAt: "desc" },
           },
-        },
-        orderBy: { readAt: "desc" },
-      },
           blockingReason: true,
           archivedAt: true,
           assigned: {

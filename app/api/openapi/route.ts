@@ -104,6 +104,7 @@ const openApiDocument = swaggerJsdoc({
             job: { type: "string" },
             status: { $ref: "#/components/schemas/Status" },
             note: { type: "string", nullable: true },
+            summaryUpdatedAt: { type: "string", format: "date-time", nullable: true },
             readBy: {
               type: "array",
               items: { type: "string" },
@@ -126,6 +127,7 @@ const openApiDocument = swaggerJsdoc({
             "job",
             "status",
             "note",
+            "summaryUpdatedAt",
             "readBy",
             "blockingReason",
             "archivedAt",

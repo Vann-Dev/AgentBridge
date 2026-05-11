@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
 import { notFound, requireInternalSession } from "@/lib/api/internal"
+import { findReviewReader } from "@/lib/api/review-reader"
 import { prisma } from "@/lib/prisma"
 
 type RouteContext = {
@@ -32,33 +33,31 @@ export async function POST(_request: Request, { params }: RouteContext) {
     return notFound("Done task note not found.")
   }
 
-  const mainAgent = await prisma.agent.findFirst({
-    where: {
-      companyId: task.project.companyId,
-      AgentId: "main",
-    },
-    select: { id: true },
-  })
+  const reviewReader = await findReviewReader(task.project.companyId)
 
-  if (!mainAgent) {
-    return notFound("Main agent not found.")
+  if (!reviewReader) {
+    return notFound("Review reader agent not found.")
   }
 
   await prisma.taskReadMarker.upsert({
     where: {
       taskId_agentId_status: {
         taskId: task.id,
-        agentId: mainAgent.id,
+        agentId: reviewReader.id,
         status: Status.done,
       },
     },
     create: {
       taskId: task.id,
-      agentId: mainAgent.id,
+      agentId: reviewReader.id,
       status: Status.done,
     },
     update: { readAt: new Date() },
   })
 
-  return NextResponse.json({ statusCode: 200, taskId: task.id })
+  return NextResponse.json({
+    statusCode: 200,
+    taskId: task.id,
+    readBy: reviewReader.AgentId,
+  })
 }

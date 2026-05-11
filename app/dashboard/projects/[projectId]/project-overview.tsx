@@ -48,6 +48,7 @@ const statuses = [
 ] as const
 
 const statusLabels = new Map(statuses.map((status) => [status.key, status.label]))
+const reviewReaderAgentId = "main"
 
 export function ProjectOverview({ project }: ProjectOverviewProps) {
   const tasks = project.tasks
@@ -251,13 +252,13 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           <Card>
             <CardHeader>
               <CardTitle>Recently completed</CardTitle>
-              <CardDescription>Unread done summaries for Natsuki/main review.</CardDescription>
+              <CardDescription>Unread done summaries for the review reader.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {recentDone.length ? (
                 recentDone.map((task) => <TaskSummary key={task.id} task={task} />)
               ) : (
-                <EmptyMessage title="No unread summaries" text="New done summaries appear here until Natsuki/main reviews them." />
+                <EmptyMessage title="No unread summaries" text="New done summaries appear here until the review reader marks them reviewed." />
               )}
             </CardContent>
           </Card>
@@ -338,9 +339,10 @@ function StatusCount({ label, value }: { label: string; value: number }) {
 function isUnreadDoneSummary(task: ProjectTask) {
   if (!task.note) return false
 
-  const readMarker = task.readMarkers.find(
-    (marker) => marker.status === Status.done && marker.agent.AgentId === "main"
-  )
+  const readMarker =
+    task.readMarkers.find(
+      (marker) => marker.status === Status.done && marker.agent.AgentId === reviewReaderAgentId
+    ) ?? task.readMarkers.find((marker) => marker.status === Status.done)
 
   return !readMarker || !task.summaryUpdatedAt || new Date(readMarker.readAt) < new Date(task.summaryUpdatedAt)
 }

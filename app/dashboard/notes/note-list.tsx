@@ -34,17 +34,27 @@ type NoteTask = {
   }
 }
 
+type ReviewReader = {
+  id: string
+  AgentId: string
+  name: string
+}
+
 type NoteListProps = {
   companyId: string
+  reviewReader: ReviewReader | null
   initialNotes: NoteTask[]
 }
 
-export function NoteList({ companyId, initialNotes }: NoteListProps) {
+export function NoteList({ companyId, reviewReader, initialNotes }: NoteListProps) {
   const queryClient = useQueryClient()
   const notesQuery = useQuery({
     queryKey: ["notes", companyId],
-    queryFn: () => apiJson<{ notes: NoteTask[] }>(`/api/internal/notes?company=${companyId}`),
-    initialData: { notes: initialNotes },
+    queryFn: () =>
+      apiJson<{ notes: NoteTask[]; reviewReader: ReviewReader | null }>(
+        `/api/internal/notes?company=${companyId}`
+      ),
+    initialData: { notes: initialNotes, reviewReader },
   })
   const markReadMutation = useMutation({
     mutationFn: (taskId: string) =>
@@ -61,6 +71,12 @@ export function NoteList({ companyId, initialNotes }: NoteListProps) {
     },
   })
   const notes = notesQuery.data.notes
+  const currentReviewReader = notesQuery.data.reviewReader ?? reviewReader
+  const reviewReaderLabel = currentReviewReader
+    ? currentReviewReader.AgentId === "main"
+      ? "Natsuki/main"
+      : `${currentReviewReader.name} (${currentReviewReader.AgentId})`
+    : "No review reader"
 
   return (
     <div className="space-y-4">
@@ -75,7 +91,14 @@ export function NoteList({ companyId, initialNotes }: NoteListProps) {
           </Button>
         </div>
       ) : null}
-      {notes.length ? (
+      {!currentReviewReader ? (
+        <div className="rounded-2xl border border-dashed p-8 text-center">
+          <p className="font-medium">No review reader available</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Add an agent to this company before marking done summaries reviewed.
+          </p>
+        </div>
+      ) : notes.length ? (
         <div className="grid gap-4">
           {notes.map((task) => (
             <Card key={task.id} size="sm">
@@ -109,7 +132,11 @@ export function NoteList({ companyId, initialNotes }: NoteListProps) {
                     disabled={markReadMutation.isPending}
                     onClick={() => markReadMutation.mutate(task.id)}
                   >
-                    {markReadMutation.isPending ? "Marking..." : "Mark reviewed"}
+                    {markReadMutation.isPending ? (
+                      "Marking..."
+                    ) : (
+                      `Mark reviewed by ${reviewReaderLabel}`
+                    )}
                   </Button>
                 </div>
               </CardContent>
@@ -120,7 +147,7 @@ export function NoteList({ companyId, initialNotes }: NoteListProps) {
         <div className="rounded-2xl border border-dashed p-8 text-center">
           <p className="font-medium">No unread done summaries</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            New done task summaries appear here until Natsuki/main marks them reviewed.
+            New done task summaries appear here until {reviewReaderLabel} marks them reviewed.
           </p>
         </div>
       )}

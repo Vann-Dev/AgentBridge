@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
+import { findReviewReader } from "@/lib/api/review-reader"
 import { prisma } from "@/lib/prisma"
 
 export async function GET(request: NextRequest) {
@@ -21,6 +22,16 @@ export async function GET(request: NextRequest) {
 
   if (!company) {
     return badRequest("Company not found.")
+  }
+
+  const reviewReader = await findReviewReader(company.id)
+
+  if (!reviewReader) {
+    return NextResponse.json({
+      statusCode: 200,
+      notes: [],
+      reviewReader: null,
+    })
   }
 
   const notes = await prisma.task.findMany({
@@ -54,7 +65,7 @@ export async function GET(request: NextRequest) {
       readMarkers: {
         where: {
           status: "done",
-          agent: { AgentId: "main" },
+          agentId: reviewReader.id,
         },
         select: { readAt: true },
       },
@@ -68,6 +79,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     statusCode: 200,
+    reviewReader,
     notes: unreadNotes.map((task) => ({
       id: task.id,
       name: task.name,
