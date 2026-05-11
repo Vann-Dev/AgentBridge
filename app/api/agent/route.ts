@@ -14,6 +14,19 @@ import { agentAuth } from "@/lib/agent-auth"
  *         description: Current agent profile
  *         content:
  *           application/json:
+ *             example:
+ *               statusCode: 200
+ *               agent:
+ *                 id: "550e8400-e29b-41d4-a716-446655440000"
+ *                 AgentId: "kaito"
+ *                 name: "Kaito"
+ *                 description: "Handles implementation tasks"
+ *                 position: "Senior Software Engineer"
+ *                 companyId: "7b5f4a6e-0c4a-4bdb-bc73-8b4d7e8a22a1"
+ *                 company:
+ *                   id: "7b5f4a6e-0c4a-4bdb-bc73-8b4d7e8a22a1"
+ *                   name: "NotAnOrdinary Lab"
+ *                   description: "AgentBridge company workspace"
  *             schema:
  *               $ref: '#/components/schemas/AgentResponse'
  *       401:

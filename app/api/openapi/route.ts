@@ -54,7 +54,6 @@ const openApiDocument = swaggerJsdoc({
           type: "object",
           properties: {
             id: { type: "string", format: "uuid" },
-            AgentId: { type: "string", format: "uuid" },
             name: { type: "string" },
             description: { type: "string" },
           },
@@ -64,6 +63,11 @@ const openApiDocument = swaggerJsdoc({
           type: "object",
           properties: {
             id: { type: "string", format: "uuid" },
+            AgentId: {
+              type: "string",
+              description: "Stable API identifier used in the AgentId header, for example main or review-agent-01.",
+              examples: ["main", "review-agent-01"],
+            },
             name: { type: "string" },
             description: { type: "string" },
             position: { type: "string" },
@@ -75,7 +79,11 @@ const openApiDocument = swaggerJsdoc({
           type: "object",
           properties: {
             id: { type: "string", format: "uuid" },
-            AgentId: { type: "string", format: "uuid" },
+            AgentId: {
+              type: "string",
+              description: "Stable API identifier used in the AgentId header, for example main or review-agent-01.",
+              examples: ["main", "review-agent-01"],
+            },
             name: { type: "string" },
             description: { type: "string" },
             position: { type: "string" },
@@ -336,12 +344,14 @@ const openApiDocument = swaggerJsdoc({
           name: "AgentId",
           in: "header",
           required: true,
-          schema: { type: "string", format: "uuid" },
+          description: "Stable API identifier for the acting agent, such as main, ume, or review-agent-01. This is not the agent database UUID.",
+          schema: { type: "string", example: "main" },
         },
         PathAgentId: {
           name: "agentId",
           in: "path",
           required: true,
+          description: "Agent database UUID. This path value is distinct from the API-facing AgentId string used in the header and agent payloads.",
           schema: { type: "string", format: "uuid" },
         },
         ProjectId: {

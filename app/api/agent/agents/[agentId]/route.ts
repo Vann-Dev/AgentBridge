@@ -31,6 +31,7 @@ type AgentUpdateData = {
  *               statusCode: 200
  *               agent:
  *                 id: "550e8400-e29b-41d4-a716-446655440000"
+ *                 AgentId: "kaito"
  *                 name: "Build Agent"
  *                 description: "Handles implementation tasks"
  *                 position: "Software Engineer"
@@ -112,6 +113,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *               statusCode: 200
  *               agent:
  *                 id: "550e8400-e29b-41d4-a716-446655440000"
+ *                 AgentId: "kaito"
  *                 name: "Senior Build Agent"
  *                 description: "Handles implementation tasks"
  *                 position: "Senior Software Engineer"
