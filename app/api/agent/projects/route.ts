@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { agentAuth } from "@/lib/agent-auth"
+import { projectAgentSelect, serializeProjectAgents } from "@/lib/api/project-agents"
 import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
 import { prisma } from "@/lib/prisma"
 
@@ -22,6 +23,11 @@ import { prisma } from "@/lib/prisma"
  *                 - id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
  *                   name: "Website Redesign"
  *                   description: "Refresh marketing site"
+ *                   projectAgents:
+ *                     - id: "550e8400-e29b-41d4-a716-446655440000"
+ *                       AgentId: "builder"
+ *                       name: "Build Agent"
+ *                       position: "Software Engineer"
  *                   tasks:
  *                     - id: "f4b8b6aa-2d17-46bf-8fa7-7dfc38ad87b8"
  *                       name: "Build landing page"
@@ -63,6 +69,10 @@ export async function GET(request: NextRequest) {
       id: true,
       name: true,
       description: true,
+      agents: {
+        orderBy: { agent: { name: "asc" } },
+        select: projectAgentSelect,
+      },
       tasks: {
         where: { archivedAt: null },
         orderBy: { name: "asc" },
@@ -110,6 +120,8 @@ export async function GET(request: NextRequest) {
     statusCode: 200,
     projects: projects.map((project) => ({
       ...project,
+      projectAgents: serializeProjectAgents(project.agents),
+      agents: undefined,
       tasks: project.tasks.map(serializeTaskReadMarkers),
     })),
   })

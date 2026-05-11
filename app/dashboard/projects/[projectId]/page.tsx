@@ -33,6 +33,20 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
             orderBy: { name: "asc" },
             select: {
               id: true,
+              AgentId: true,
+              name: true,
+              position: true,
+            },
+          },
+        },
+      },
+      agents: {
+        orderBy: { agent: { name: "asc" } },
+        select: {
+          agent: {
+            select: {
+              id: true,
+              AgentId: true,
               name: true,
               position: true,
             },
@@ -46,6 +60,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
     notFound()
   }
 
+  const { agents, ...projectData } = project
+
   return (
     <DashboardShell
       companies={companies}
@@ -53,7 +69,14 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       activePath="projects"
       username={session.username}
     >
-      <ProjectDetailClient initialProject={{ ...project, tasks: [] }} projectId={project.id} />
+      <ProjectDetailClient
+        initialProject={{
+          ...projectData,
+          projectAgents: agents.map(({ agent }) => agent),
+          tasks: [],
+        }}
+        projectId={project.id}
+      />
     </DashboardShell>
   )
 }

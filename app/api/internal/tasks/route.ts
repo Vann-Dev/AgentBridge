@@ -57,10 +57,7 @@ export async function POST(request: Request) {
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
-      company: {
-        userId: session.userId,
-        agents: { some: { id: assignedAgentId } },
-      },
+      company: { userId: session.userId },
     },
     select: {
       id: true,
@@ -77,11 +74,19 @@ export async function POST(request: Request) {
           },
         },
       },
+      agents: {
+        where: { agentId: assignedAgentId },
+        select: { agentId: true },
+      },
     },
   })
 
   if (!project) {
     return badRequest("Project or agent not found.")
+  }
+
+  if (!project.agents.length) {
+    return badRequest("Agent is not assigned to this project.")
   }
 
   if (project.company.agents.length !== readByAgentIds.length) {

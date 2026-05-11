@@ -305,25 +305,26 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       project: { companyId: agent.companyId },
       archivedAt: null,
     },
-    select: { id: true, note: true, status: true, projectId: true },
+    select: { id: true, note: true, status: true, projectId: true, assignedAgentId: true },
   })
 
   if (!task) {
     return NextResponse.json({ statusCode: 404, error: "Task not found" }, { status: 404 })
   }
 
-  if (data.assignedAgentId) {
-    const assignedAgent = await prisma.agent.findFirst({
+  if (data.assignedAgentId && data.assignedAgentId !== task.assignedAgentId) {
+    const projectAgent = await prisma.projectAgent.findFirst({
       where: {
-        id: data.assignedAgentId,
-        companyId: agent.companyId,
+        projectId: task.projectId,
+        agentId: data.assignedAgentId,
+        project: { companyId: agent.companyId },
       },
-      select: { id: true },
+      select: { agentId: true },
     })
 
-    if (!assignedAgent) {
+    if (!projectAgent) {
       return NextResponse.json(
-        { statusCode: 400, error: "Assigned agent not found" },
+        { statusCode: 400, error: "Agent is not assigned to this project." },
         { status: 400 }
       )
     }

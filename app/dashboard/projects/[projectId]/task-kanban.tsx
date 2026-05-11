@@ -85,6 +85,7 @@ type TaskCard = {
 
 type AgentOption = {
   id: string
+  AgentId: string
   name: string
   position: string
 }
@@ -229,6 +230,19 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
   })
   const currentTasks = projectQuery.data.project.tasks
   const doneTaskCount = currentTasks.filter((task) => task.status === Status.done).length
+  const editAgentOptions = editingTask
+    ? agents.some((agent) => agent.id === editingTask.assigned.id)
+      ? agents
+      : [
+          {
+            id: editingTask.assigned.id,
+            AgentId: "unlinked",
+            name: editingTask.assigned.name,
+            position: `${editingTask.assigned.position} · not linked`,
+          },
+          ...agents,
+        ]
+    : agents
 
   function moveTask(taskId: string, status: Status) {
     const task = currentTasks.find((item) => item.id === taskId)
@@ -419,12 +433,18 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
               </div>
               <div className="space-y-2">
                 <Label>Assigned agent</Label>
+                <p className="text-xs text-muted-foreground">Showing agents linked to this project.</p>
+                {!agents.some((agent) => agent.id === editingTask.assigned.id) ? (
+                  <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                    Current assignee is not linked to this project. You can save unchanged or pick a linked agent.
+                  </p>
+                ) : null}
                 <Select name="assignedAgentId" defaultValue={editingTask.assigned.id} required>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select agent" />
                   </SelectTrigger>
                   <SelectContent>
-                    {agents.map((agent) => (
+                    {editAgentOptions.map((agent) => (
                       <SelectItem key={agent.id} value={agent.id}>
                         {agent.name} · {agent.position}
                       </SelectItem>

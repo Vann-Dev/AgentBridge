@@ -249,7 +249,6 @@ export async function POST(request: NextRequest) {
     where: {
       id: projectId,
       companyId: agent.companyId,
-      company: { agents: { some: { id: assignedAgentId } } },
     },
     select: {
       id: true,
@@ -261,12 +260,23 @@ export async function POST(request: NextRequest) {
           },
         },
       },
+      agents: {
+        where: { agentId: assignedAgentId },
+        select: { agentId: true },
+      },
     },
   })
 
   if (!project) {
     return NextResponse.json(
       { statusCode: 400, error: "Project or agent not found." },
+      { status: 400 }
+    )
+  }
+
+  if (!project.agents.length) {
+    return NextResponse.json(
+      { statusCode: 400, error: "Agent is not assigned to this project." },
       { status: 400 }
     )
   }
