@@ -17,6 +17,10 @@ export type ProjectTask = {
   job: string
   status: Status
   note: string | null
+  taskUpdatedAt: string | Date
+  taskUpdatedById: string | null
+  taskUpdatedByName: string | null
+  taskUpdatedByType: string
   readMarkers: TaskReadMarker[]
   blockingReason: string | null
   assigned: {

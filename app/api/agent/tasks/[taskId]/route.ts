@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { Status } from "@/generated/prisma/enums"
 import { agentAuth } from "@/lib/agent-auth"
 import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
+import { agentTaskUpdater } from "@/lib/api/task-updater"
 import { prisma } from "@/lib/prisma"
 
 const statuses = Object.values(Status)
@@ -35,6 +36,10 @@ type RouteContext = {
  *                 note: "Completed responsive layout and deployment wiring."
  *                 readBy: []
  *                 blockingReason: null
+ *                 taskUpdatedAt: "2026-05-11T08:40:00.000Z"
+ *                 taskUpdatedById: "550e8400-e29b-41d4-a716-446655440000"
+ *                 taskUpdatedByName: "Build Agent"
+ *                 taskUpdatedByType: "agent"
  *                 project:
  *                   id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
  *                   name: "Website Redesign"
@@ -69,6 +74,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       job: true,
       status: true,
       note: true,
+      taskUpdatedAt: true,
+      taskUpdatedById: true,
+      taskUpdatedByName: true,
+      taskUpdatedByType: true,
       readMarkers: {
         select: {
           agentId: true,
@@ -169,6 +178,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *                 note: "Completed responsive layout and deployment wiring."
  *                 readBy: []
  *                 blockingReason: null
+ *                 taskUpdatedAt: "2026-05-11T08:40:00.000Z"
+ *                 taskUpdatedById: "550e8400-e29b-41d4-a716-446655440000"
+ *                 taskUpdatedByName: "Build Agent"
+ *                 taskUpdatedByType: "agent"
  *                 project:
  *                   id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
  *                   name: "Website Redesign"
@@ -363,13 +376,20 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     return tx.task.update({
       where: { id: task.id },
-      data,
+      data: {
+        ...data,
+        ...agentTaskUpdater(agent),
+      },
       select: {
         id: true,
         name: true,
         job: true,
         status: true,
         note: true,
+        taskUpdatedAt: true,
+        taskUpdatedById: true,
+        taskUpdatedByName: true,
+        taskUpdatedByType: true,
         readMarkers: {
           select: {
             agentId: true,

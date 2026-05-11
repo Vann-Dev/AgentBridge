@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { Status } from "@/generated/prisma/enums"
 import { agentAuth } from "@/lib/agent-auth"
 import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
+import { agentTaskUpdater } from "@/lib/api/task-updater"
 import { prisma } from "@/lib/prisma"
 
 const statuses = Object.values(Status)
@@ -36,6 +37,10 @@ const statuses = Object.values(Status)
  *                   readBy: []
  *                   blockingReason: null
  *                   archivedAt: null
+ *                   taskUpdatedAt: "2026-05-11T08:40:00.000Z"
+ *                   taskUpdatedById: "550e8400-e29b-41d4-a716-446655440000"
+ *                   taskUpdatedByName: "Build Agent"
+ *                   taskUpdatedByType: "agent"
  *                   project:
  *                     id: "0fdb2bf7-1f5f-4db2-b927-40335a4adcc4"
  *                     name: "Website Redesign"
@@ -76,6 +81,10 @@ export async function GET(request: NextRequest) {
       job: true,
       status: true,
       note: true,
+      taskUpdatedAt: true,
+      taskUpdatedById: true,
+      taskUpdatedByName: true,
+      taskUpdatedByType: true,
       readMarkers: {
         select: {
           agentId: true,
@@ -174,6 +183,10 @@ export async function GET(request: NextRequest) {
  *                 note: "Completed responsive layout and deployment wiring."
  *                 readBy: []
  *                 blockingReason: null
+ *                 taskUpdatedAt: "2026-05-11T08:40:00.000Z"
+ *                 taskUpdatedById: "550e8400-e29b-41d4-a716-446655440000"
+ *                 taskUpdatedByName: "Build Agent"
+ *                 taskUpdatedByType: "agent"
  *                 assigned:
  *                   id: "550e8400-e29b-41d4-a716-446655440000"
  *                   name: "Build Agent"
@@ -267,6 +280,7 @@ export async function POST(request: NextRequest) {
       status: status as Status,
       note: note || null,
       blockingReason: blockingReason || null,
+      ...agentTaskUpdater(agent),
       readMarkers: {
         create: project.company.agents.map((readAgent) => ({
           agentId: readAgent.id,
@@ -274,7 +288,18 @@ export async function POST(request: NextRequest) {
         })),
       },
     },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      job: true,
+      status: true,
+      note: true,
+      blockingReason: true,
+      archivedAt: true,
+      taskUpdatedAt: true,
+      taskUpdatedById: true,
+      taskUpdatedByName: true,
+      taskUpdatedByType: true,
       assigned: {
         select: {
           id: true,

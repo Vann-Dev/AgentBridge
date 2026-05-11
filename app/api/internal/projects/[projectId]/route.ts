@@ -36,7 +36,18 @@ export async function GET(_request: Request, { params }: RouteContext) {
       },
       tasks: {
         where: { archivedAt: null },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          job: true,
+          status: true,
+          note: true,
+          blockingReason: true,
+          archivedAt: true,
+          taskUpdatedAt: true,
+          taskUpdatedById: true,
+          taskUpdatedByName: true,
+          taskUpdatedByType: true,
           assigned: {
             select: {
               id: true,

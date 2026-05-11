@@ -37,6 +37,10 @@ type RouteContext = {
  *                     readBy: []
  *                     blockingReason: null
  *                     archivedAt: null
+ *                     taskUpdatedAt: "2026-05-11T08:40:00.000Z"
+ *                     taskUpdatedById: "550e8400-e29b-41d4-a716-446655440000"
+ *                     taskUpdatedByName: "Build Agent"
+ *                     taskUpdatedByType: "agent"
  *                     assigned:
  *                       id: "550e8400-e29b-41d4-a716-446655440000"
  *                       name: "Build Agent"
@@ -74,6 +78,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
           job: true,
           status: true,
           note: true,
+          taskUpdatedAt: true,
+          taskUpdatedById: true,
+          taskUpdatedByName: true,
+          taskUpdatedByType: true,
           readMarkers: {
         select: {
           agentId: true,

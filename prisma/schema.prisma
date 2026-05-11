@@ -57,9 +57,13 @@ model Task {
   name           String
   job            String
   note           String?
-  status         Status    @default(todo)
-  blockingReason String?
-  archivedAt     DateTime?
+  status            Status    @default(todo)
+  blockingReason    String?
+  archivedAt        DateTime?
+  taskUpdatedAt     DateTime  @default(now())
+  taskUpdatedById   String?   @db.Uuid
+  taskUpdatedByName String?
+  taskUpdatedByType String    @default("system")
 
   projectId       String  @db.Uuid
   assignedAgentId String  @db.Uuid
