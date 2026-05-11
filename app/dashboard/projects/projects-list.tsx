@@ -123,6 +123,8 @@ function ProjectActions({ companyId, project }: ProjectActionsProps) {
     onSuccess: () => {
       setRenameOpen(false)
       queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["project", project.id] })
     },
   })
   const deleteMutation = useMutation({
@@ -133,6 +135,8 @@ function ProjectActions({ companyId, project }: ProjectActionsProps) {
     onSuccess: () => {
       setDeleteOpen(false)
       queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.removeQueries({ queryKey: ["project", project.id] })
     },
   })
 

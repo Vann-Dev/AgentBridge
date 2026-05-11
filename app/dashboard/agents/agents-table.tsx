@@ -58,7 +58,12 @@ export function AgentsTable({ companyId }: AgentsTableProps) {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agents", companyId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["project"] })
+    },
   })
 
   function action(formData: FormData) {

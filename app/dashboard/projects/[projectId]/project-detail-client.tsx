@@ -45,7 +45,7 @@ export function ProjectDetailClient({ initialProject, projectId }: ProjectDetail
                 {project.description || "No description"}
               </CardDescription>
             </div>
-            <CreateTaskDialog projectId={project.id} agents={agents} />
+            <CreateTaskDialog companyId={project.companyId} projectId={project.id} agents={agents} />
           </div>
         </CardHeader>
         <CardContent>
@@ -91,7 +91,12 @@ export function ProjectDetailClient({ initialProject, projectId }: ProjectDetail
         {isLoadingProjectData ? (
           <TaskKanbanSkeleton />
         ) : (
-          <TaskKanban agents={agents} projectId={project.id} tasks={project.tasks} />
+          <TaskKanban
+            agents={agents}
+            companyId={project.companyId}
+            projectId={project.id}
+            tasks={project.tasks}
+          />
         )}
       </section>
     </div>
