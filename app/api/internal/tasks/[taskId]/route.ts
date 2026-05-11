@@ -219,7 +219,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         ...(name ? { name } : {}),
         ...(job ? { job } : {}),
         ...(status ? { status: status as Status } : {}),
-        ...(note !== undefined
+        ...(noteChanged
           ? { note: note || null, summaryUpdatedAt: note ? new Date() : null }
           : {}),
         ...(blockingReason !== undefined ? { blockingReason: blockingReason || null } : {}),

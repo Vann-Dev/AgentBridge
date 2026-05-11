@@ -230,6 +230,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     job?: string
     status?: Status
     note?: string | null
+    summaryUpdatedAt?: Date | null
     blockingReason?: string | null
   } = {}
   const readBy = parseReadByAgentIds(updates.readBy)
@@ -338,6 +339,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const nextStatus = data.status ?? task.status
   const statusChanged = nextStatus !== task.status
   const noteChanged = data.note !== undefined && data.note !== task.note
+  if (!noteChanged) {
+    delete data.note
+  } else {
+    data.summaryUpdatedAt = data.note ? new Date() : null
+  }
   const shouldClearNextStatusReads = !hasReadBy && (statusChanged || noteChanged)
   const updatedTask = await prisma.$transaction(async (tx) => {
     if (hasReadBy) {
@@ -386,6 +392,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         job: true,
         status: true,
         note: true,
+        summaryUpdatedAt: true,
         taskUpdatedAt: true,
         taskUpdatedById: true,
         taskUpdatedByName: true,

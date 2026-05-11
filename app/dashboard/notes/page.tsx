@@ -29,6 +29,7 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
     where: {
       archivedAt: null,
       note: { not: null },
+      status: "done",
       project: { companyId: activeCompany.id },
     },
     orderBy: [{ summaryUpdatedAt: "desc" }, { name: "asc" }],
@@ -52,7 +53,19 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
           name: true,
         },
       },
+      readMarkers: {
+        where: {
+          status: "done",
+          agent: { AgentId: "main" },
+        },
+        select: { readAt: true },
+      },
     },
+  })
+  const unreadNotes = notes.filter((task) => {
+    const readAt = task.readMarkers[0]?.readAt
+
+    return !readAt || !task.summaryUpdatedAt || readAt < task.summaryUpdatedAt
   })
 
   return (
@@ -66,16 +79,20 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
         <CardHeader>
           <CardTitle className="text-2xl">Notes</CardTitle>
           <CardDescription>
-            Review agent result notes, done summaries, and handoffs across active tasks.
+            Review unread done summaries. Mark reviewed cards disappear from this queue for Natsuki/main.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <NoteList
             companyId={activeCompany.id}
-            initialNotes={notes.map((task) => ({
-              ...task,
+            initialNotes={unreadNotes.map((task) => ({
+              id: task.id,
+              name: task.name,
+              status: task.status,
               note: task.note ?? "",
               summaryUpdatedAt: task.summaryUpdatedAt?.toISOString() ?? null,
+              assigned: task.assigned,
+              project: task.project,
             }))}
           />
         </CardContent>

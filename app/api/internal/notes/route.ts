@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     where: {
       archivedAt: null,
       note: { not: null },
+      status: "done",
       project: { companyId: company.id },
     },
     orderBy: [{ summaryUpdatedAt: "desc" }, { name: "asc" }],
@@ -50,15 +51,31 @@ export async function GET(request: NextRequest) {
           name: true,
         },
       },
+      readMarkers: {
+        where: {
+          status: "done",
+          agent: { AgentId: "main" },
+        },
+        select: { readAt: true },
+      },
     },
+  })
+  const unreadNotes = notes.filter((task) => {
+    const readAt = task.readMarkers[0]?.readAt
+
+    return !readAt || !task.summaryUpdatedAt || readAt < task.summaryUpdatedAt
   })
 
   return NextResponse.json({
     statusCode: 200,
-    notes: notes.map((task) => ({
-      ...task,
+    notes: unreadNotes.map((task) => ({
+      id: task.id,
+      name: task.name,
+      status: task.status,
       note: task.note ?? "",
       summaryUpdatedAt: task.summaryUpdatedAt?.toISOString() ?? null,
+      assigned: task.assigned,
+      project: task.project,
     })),
   })
 }
