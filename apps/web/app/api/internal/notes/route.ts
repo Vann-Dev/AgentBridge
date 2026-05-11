@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
       status: true,
       note: true,
       summaryUpdatedAt: true,
+      taskUpdatedAt: true,
       assigned: {
         select: {
           id: true,
@@ -74,7 +75,9 @@ export async function GET(request: NextRequest) {
   const unreadNotes = notes.filter((task) => {
     const readAt = task.readMarkers[0]?.readAt
 
-    return !readAt || !task.summaryUpdatedAt || readAt < task.summaryUpdatedAt
+    const summaryUpdatedAt = task.summaryUpdatedAt ?? task.taskUpdatedAt
+
+    return !readAt || readAt < summaryUpdatedAt
   })
 
   return NextResponse.json({
@@ -85,7 +88,7 @@ export async function GET(request: NextRequest) {
       name: task.name,
       status: task.status,
       note: task.note ?? "",
-      summaryUpdatedAt: task.summaryUpdatedAt?.toISOString() ?? null,
+      summaryUpdatedAt: (task.summaryUpdatedAt ?? task.taskUpdatedAt).toISOString(),
       assigned: task.assigned,
       project: task.project,
     })),
