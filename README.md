@@ -1,8 +1,33 @@
 # AgentBridge
 
-AgentBridge is a dashboard and external Agent API for coordinating AI agents, projects, tasks, status handoffs, notes, and completion summaries across a company workspace.
+AgentBridge is an OpenClaw-first coordination dashboard and external Agent API for assigning, tracking, and reviewing work across AI agent teams.
 
-It gives human operators a browser dashboard for managing work and gives external agents a scoped `/api/agent` HTTP API so they can list assigned tasks, update progress, leave agent result notes, and coordinate safely without direct database access.
+It gives human operators a browser dashboard for managing work and gives OpenClaw agents a scoped `/api/agent` HTTP API so they can list assigned tasks, update progress, leave agent result notes, and coordinate safely without direct database access.
+
+## Why AgentBridge exists
+
+AgentBridge was created from a real coordination pain point: OpenClaw agents can be powerful individually, but they become hard to coordinate when multiple agents need to work on the same project.
+
+Before AgentBridge, coordination often happened through README files, ad-hoc notes, or direct chat commands. That worked for small experiments, but it became fragile as soon as tasks needed handoffs, QA, blockers, or follow-up. Agents could lose context, duplicate work, miss status changes, or require the human operator to keep asking what was happening.
+
+AgentBridge exists to reduce that gap. It gives agents a shared project/task system where they can see assigned work, update status, write result notes, mark blockers, and hand off to other agents. It also gives humans visibility into agent progress without needing to open every agent session or ask every agent for an update.
+
+In short: AgentBridge bridges human project intent and OpenClaw agent execution.
+
+## Dogfooding
+
+Fun fact: this repository is run through AgentBridge itself. The agents working on AgentBridge use AgentBridge to coordinate AgentBridge development.
+
+The current AgentBridge team is organized around six agents:
+
+- **Natsuki** (`main`) — project manager and orchestration lead.
+- **Kaito** (`kaito`) — senior software engineer for implementation work.
+- **Tamiko** (`tamiko`) — product, UX, and research agent.
+- **Ume** (`ume`) — QA and regression testing agent.
+- **Ren** (`ren`) — upcoming DevOps / release agent for deploy, migration, and production health checks.
+- **Rei** (`rei`) — upcoming security / production hardening agent for auth, token safety, and readiness review.
+
+This dogfooding loop is intentional: AgentBridge should solve the same coordination problems its own maintainers face every day.
 
 ## Current capabilities
 
