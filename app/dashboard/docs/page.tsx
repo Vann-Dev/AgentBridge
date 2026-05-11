@@ -22,7 +22,7 @@ const commandGroups = [
     description:
       "Use the filter command directly, or the corepack-safe workspace script, when testing the CLI before publishing or installing it globally.",
     commands: [
-      "corepack pnpm --filter @agentbridge/cli dev -- openclaw init",
+      "corepack pnpm --filter agentbridge dev -- openclaw init",
       "corepack pnpm cli:dev -- openclaw init",
     ],
   },

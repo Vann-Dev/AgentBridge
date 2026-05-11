@@ -529,8 +529,8 @@ Heartbeat behavior:
 6. If read markers are used, mark only the current agent/status as read after processing the displayed task state.
 
 Useful manual checks:
-- \`corepack pnpm --filter @agentbridge/cli start -- openclaw doctor --workspace <workspace>\`
-- \`corepack pnpm --filter @agentbridge/cli start -- openclaw check --workspace <workspace>\`
+- \`corepack pnpm --filter agentbridge start -- openclaw doctor --workspace <workspace>\`
+- \`corepack pnpm --filter agentbridge start -- openclaw check --workspace <workspace>\`
 
 ${markerEnd}
 `

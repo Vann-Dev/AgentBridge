@@ -142,13 +142,24 @@ You can generate a new company bearer token later from dashboard company setting
 
 ## OpenClaw setup with the CLI
 
-The repository includes a local `cli/` workspace package for setting up AgentBridge in OpenClaw workspaces. It is private/local for now and is intended to be run from a checkout with Corepack:
+The repository includes a publish-ready `cli/` workspace package for setting up AgentBridge in OpenClaw workspaces.
+
+After the CLI is published to npm, the intended install-free usage is:
 
 ```bash
-corepack pnpm --filter @agentbridge/cli dev -- openclaw init
-corepack pnpm --filter @agentbridge/cli dev -- openclaw doctor --workspace ~/.openclaw
-corepack pnpm --filter @agentbridge/cli dev -- openclaw check --workspace ~/.openclaw --agent kaito
-corepack pnpm --filter @agentbridge/cli dev -- openclaw status --workspace ~/.openclaw
+npx agentbridge openclaw init
+npx agentbridge openclaw doctor --workspace ~/.openclaw
+npx agentbridge openclaw check --workspace ~/.openclaw --agent kaito
+npx agentbridge openclaw status --workspace ~/.openclaw
+```
+
+For local development from this repository, use Corepack:
+
+```bash
+corepack pnpm --filter agentbridge dev -- openclaw init
+corepack pnpm --filter agentbridge dev -- openclaw doctor --workspace ~/.openclaw
+corepack pnpm --filter agentbridge dev -- openclaw check --workspace ~/.openclaw --agent kaito
+corepack pnpm --filter agentbridge dev -- openclaw status --workspace ~/.openclaw
 ```
 
 `openclaw init` detects local OpenClaw agent candidates first, fetches company agents from `/api/agent/agents`, matches by `AgentId` or normalized name, and asks for confirmation before writing files. Manual AgentId entry is fallback only.

@@ -1,23 +1,60 @@
 # AgentBridge CLI
 
-Local TypeScript CLI scaffold for installing AgentBridge into an OpenClaw workspace.
+OpenClaw-first CLI for installing AgentBridge task coordination into an OpenClaw workspace.
+
+After publish, the intended usage is:
+
+```bash
+npx agentbridge openclaw init
+```
+
+The CLI installs AgentBridge instructions/config for OpenClaw agents so they can check assigned work through AgentBridge during normal heartbeat flow. The default setup is heartbeat-based, not cron-based.
 
 ## Commands
 
 ```bash
-corepack pnpm --filter @agentbridge/cli dev -- openclaw init
-corepack pnpm --filter @agentbridge/cli dev -- openclaw doctor --workspace ~/.openclaw
-corepack pnpm --filter @agentbridge/cli dev -- openclaw check --workspace ~/.openclaw --agent kaito
-corepack pnpm --filter @agentbridge/cli dev -- openclaw status --workspace ~/.openclaw
+agentbridge openclaw init [--workspace <path>] [--base-url <url>] [--agent <AgentId>] [--all-detected] [--dry-run] [--yes]
+agentbridge openclaw doctor [--workspace <path>] [--base-url <url>] [--token <token>] [--agent <AgentId>]
+agentbridge openclaw check [--workspace <path>] [--base-url <url>] [--token <token>] [--agent <AgentId>]
+agentbridge openclaw status [--workspace <path>]
 ```
 
-`openclaw init` auto-detects local OpenClaw agent candidates first, fetches company agents from `/api/agent/agents`, matches by `AgentId` and normalized name, then shows a confirmation list. Manual AgentId entry is fallback only.
+## Local development
+
+From the AgentBridge repository root:
+
+```bash
+corepack pnpm --filter agentbridge dev -- openclaw init
+corepack pnpm --filter agentbridge build
+corepack pnpm --filter agentbridge pack:dry-run
+```
+
+Before publish, test the built package locally:
+
+```bash
+corepack pnpm --filter agentbridge build
+node cli/dist/index.js openclaw status --workspace ~/.openclaw
+```
+
+## OpenClaw init behavior
+
+`openclaw init`:
+
+1. Detects the OpenClaw workspace.
+2. Detects local OpenClaw agent candidates.
+3. Fetches company agents from `/api/agent/agents`.
+4. Matches by `AgentId` or normalized name.
+5. Asks for confirmation before writing files.
+
+Manual AgentId entry is fallback only.
 
 The installer writes:
 
-- `skills/agent-ops/SKILL.md` from the repository `agent-skill/SKILL.md`.
-- `.openclaw/agentbridge/config.json` for non-secret config.
-- `.openclaw/agentbridge/.env` for `AGENTBRIDGE_BASE_URL` and `AGENTBRIDGE_COMPANY_TOKEN` with `0600` permissions where supported.
-- An AgentBridge-managed marker block in `HEARTBEAT.md` describing heartbeat task checks. Cron is not the default workflow.
+- `skills/agent-ops/SKILL.md`
+- `.openclaw/agentbridge/config.json` for non-secret config
+- `.openclaw/agentbridge/.env` for `AGENTBRIDGE_BASE_URL` and `AGENTBRIDGE_COMPANY_TOKEN`, with `0600` permissions where supported
+- an AgentBridge-managed marker block in `HEARTBEAT.md`
 
-The CLI redacts tokens in errors and never prints the company token during normal command output.
+## Token safety
+
+The CLI redacts tokens in errors and never prints the company token during normal command output. Do not commit generated `.openclaw/agentbridge/.env` files.
