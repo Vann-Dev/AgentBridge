@@ -30,7 +30,7 @@ AgentBridge does not currently include scheduling, chat, billing, or third-party
 ## Prerequisites
 
 - Node.js compatible with the checked-in Next.js/React toolchain
-- Corepack enabled, so `pnpm` is available through `corepack pnpm`
+- Corepack enabled, so the pinned package manager (`pnpm@11.0.9`) is available through `corepack pnpm`
 - PostgreSQL database
 - A long random `AUTH_SECRET` value for session signing
 
@@ -45,7 +45,7 @@ corepack enable
 1. Install dependencies:
 
    ```bash
-   corepack pnpm install
+   corepack pnpm install --frozen-lockfile
    ```
 
 2. Create an environment file:
@@ -217,8 +217,9 @@ Useful Agent API resources:
 Run these from the repository root:
 
 ```bash
+corepack pnpm install --frozen-lockfile
 corepack pnpm lint
-corepack pnpm typecheck
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public" corepack pnpm typecheck
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public" corepack pnpm build
 ```
 
@@ -231,17 +232,19 @@ corepack pnpm prisma:studio
 corepack pnpm format
 ```
 
-`corepack pnpm build` runs `prisma generate` before `next build`.
+`corepack pnpm typecheck` and `corepack pnpm build` run `prisma generate` first so a fresh checkout has the generated Prisma client before TypeScript or Next.js reads it. Prisma generation uses `DATABASE_URL`, so pass a real connection string or a placeholder PostgreSQL URL for static checks that do not connect to the database.
+
+`pnpm-workspace.yaml` intentionally records the approved dependency build-script allowlist for pnpm 11 installs. pnpm 11 treats ignored dependency build scripts as errors by default, so keep the checked-in `allowBuilds` entries in sync with dependencies instead of creating ad-hoc local approval files during QA.
 
 If TypeScript reports stale generated routes or Prisma fields after switching branches, remove stale generated output and regenerate:
 
 ```bash
 rm -rf .next
-corepack pnpm prisma:generate
-corepack pnpm typecheck
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public" corepack pnpm prisma:generate
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public" corepack pnpm typecheck
 ```
 
-If Prisma types are missing after schema changes, run `corepack pnpm prisma:generate` before `corepack pnpm typecheck`.
+If Prisma types are missing after schema changes, run `DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public" corepack pnpm prisma:generate` before typechecking.
 
 ## Docker
 
