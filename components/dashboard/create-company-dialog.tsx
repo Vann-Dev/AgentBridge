@@ -1,5 +1,7 @@
 "use client"
 
+import type { ReactNode } from "react"
+
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 
@@ -19,9 +21,13 @@ import { apiJson } from "@/lib/api/client"
 
 type CreateCompanyDialogProps = {
   defaultOpen?: boolean
+  trigger?: ReactNode
 }
 
-export function CreateCompanyDialog({ defaultOpen = false }: CreateCompanyDialogProps) {
+export function CreateCompanyDialog({
+  defaultOpen = false,
+  trigger,
+}: CreateCompanyDialogProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const mutation = useMutation({
@@ -49,9 +55,11 @@ export function CreateCompanyDialog({ defaultOpen = false }: CreateCompanyDialog
   return (
     <Dialog defaultOpen={defaultOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full justify-start px-3" variant="ghost" type="button">
-          Create company
-        </Button>
+        {trigger ?? (
+          <Button className="w-full justify-start px-3" variant="ghost" type="button">
+            Create company
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
