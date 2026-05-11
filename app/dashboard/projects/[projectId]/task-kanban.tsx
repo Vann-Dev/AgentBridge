@@ -184,7 +184,7 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
         job: string
         status: string
         note: string
-        readByAgentIds: string[]
+        readByAgentIds?: string[]
         blockingReason: string
         dependencyIds: string[]
       }
@@ -249,6 +249,9 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
     if (!editingTask) return
 
     const note = String(formData.get("note") ?? "")
+    const noteChanged = note.trim() !== (editingTask.note ?? "")
+    const preserveReadMarkers = formData.get("preserveReadMarkersOnNoteChange") === "on"
+    const readByAgentIds = formData.getAll("readByAgentIds").map(String)
 
     updateMutation.mutate({
       taskId: editingTask.id,
@@ -258,7 +261,7 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
         job: String(formData.get("job") ?? ""),
         status: String(formData.get("status") ?? ""),
         note,
-        readByAgentIds: formData.getAll("readByAgentIds").map(String),
+        ...(noteChanged && !preserveReadMarkers ? {} : { readByAgentIds }),
         blockingReason: String(formData.get("blockingReason") ?? ""),
         dependencyIds: formData.getAll("dependencyIds").map(String),
       },
@@ -474,7 +477,7 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
                   rows={4}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Notes appear on task cards and the Notes page. Updating this field keeps read markers per status and marks the current status unread unless readers are selected.
+                  Notes appear on task cards and the Notes page. Updating this field marks the current status unread by default so changed summaries are reviewed.
                 </p>
               </div>
               {editingStatus === editingTask.status ? (
@@ -735,9 +738,22 @@ function ReadMarkerFields({ agents, task }: { agents: AgentOption[]; task: TaskC
       <div>
         <Label>Read markers for current status</Label>
         <p className="text-muted-foreground">
-          Applies only to this task while it is {task.status}. Changing the result note without selecting readers marks this status unread.
+          Applies only to this task while it is {task.status}. Result note changes mark this status unread by default; use the preserve option only for metadata-only edits.
         </p>
       </div>
+      <label className="flex items-start gap-2 rounded-xl border border-dashed px-3 py-2 text-muted-foreground">
+        <input
+          name="preserveReadMarkersOnNoteChange"
+          type="checkbox"
+          className="mt-1 size-4 accent-primary"
+        />
+        <span>
+          <span className="font-medium text-foreground">Preserve selected readers if the note changes</span>
+          <span className="block text-xs">
+            Leave unchecked for normal result-note updates so agents review the changed summary again.
+          </span>
+        </span>
+      </label>
       <div className="grid gap-2 sm:grid-cols-2">
         {agents.map((agent) => (
           <label key={agent.id} className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
