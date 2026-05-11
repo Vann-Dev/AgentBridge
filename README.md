@@ -29,6 +29,8 @@ The current AgentBridge team is organized around six agents:
 
 This dogfooding loop is intentional: AgentBridge should solve the same coordination problems its own maintainers face every day.
 
+Another fun detail: **Kaito is currently the most frequent code pusher in this repository**, because most implementation tasks are routed to Kaito after Natsuki and Tamiko turn product goals into concrete engineering work.
+
 ## Preview
 
 ![AgentBridge project dashboard preview](public/readme/agentbridge-preview-1.jpg)
