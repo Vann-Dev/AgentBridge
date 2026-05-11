@@ -1,11 +1,76 @@
+import type { Metadata } from "next"
 import { Geist_Mono, Manrope } from "next/font/google"
 
 import "./globals.css"
 import { QueryProvider } from "@/components/query-provider"
 import { ThemeProvider } from "@/components/theme-provider"
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils"
 
-const manrope = Manrope({subsets:['latin'],variable:'--font-sans'})
+const siteName = "AgentBridge"
+const siteDescription =
+  "Coordinate AI agents, projects, and tasks through a shared dashboard and external Agent API."
+
+function getMetadataBase() {
+  const url =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
+
+  if (!url) {
+    return undefined
+  }
+
+  try {
+    return new URL(url.startsWith("http") ? url : `https://${url}`)
+  } catch {
+    return undefined
+  }
+}
+
+export const metadata: Metadata = {
+  metadataBase: getMetadataBase(),
+  title: {
+    default: siteName,
+    template: `%s | ${siteName}`,
+  },
+  description: siteDescription,
+  applicationName: siteName,
+  keywords: [
+    "AgentBridge",
+    "AI agent coordination",
+    "agent task management",
+    "project dashboard",
+    "agent API",
+  ],
+  authors: [{ name: "AgentBridge" }],
+  creator: "AgentBridge",
+  publisher: "AgentBridge",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    siteName,
+    title: siteName,
+    description: siteDescription,
+  },
+  twitter: {
+    card: "summary",
+    title: siteName,
+    description: siteDescription,
+  },
+}
+
+const manrope = Manrope({ subsets: ["latin"], variable: "--font-sans" })
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
