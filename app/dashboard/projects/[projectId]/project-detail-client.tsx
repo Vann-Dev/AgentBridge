@@ -14,6 +14,7 @@ import {
 import { apiJson } from "@/lib/api/client"
 
 import { CreateTaskDialog } from "./create-task-dialog"
+import { ProjectAgentsManager } from "./project-agents-manager"
 import { ProjectOverview, ProjectOverviewSkeleton } from "./project-overview"
 import { TaskKanban, TaskKanbanSkeleton } from "./task-kanban"
 import type { ProjectDetailData } from "./types"
@@ -31,7 +32,8 @@ export function ProjectDetailClient({ initialProject, projectId }: ProjectDetail
     initialData: { project: initialProject },
   })
   const project = projectQuery.data.project
-  const agents = project.company.agents
+  const agents = project.projectAgents
+  const companyAgents = project.company.agents
   const isLoadingProjectData = projectQuery.isFetching && project.tasks.length === 0
 
   return (
@@ -48,7 +50,13 @@ export function ProjectDetailClient({ initialProject, projectId }: ProjectDetail
             <CreateTaskDialog companyId={project.companyId} projectId={project.id} agents={agents} />
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <ProjectAgentsManager
+            companyAgents={companyAgents}
+            companyId={project.companyId}
+            projectAgents={agents}
+            projectId={project.id}
+          />
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
               <Link href={`/dashboard/projects?company=${project.companyId}`}>

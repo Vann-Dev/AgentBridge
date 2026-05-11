@@ -95,20 +95,18 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return notFound("Task not found.")
   }
 
-  if (assignedAgentId) {
-    const agent = await prisma.agent.findFirst({
+  if (assignedAgentId && assignedAgentId !== task.assignedAgentId) {
+    const projectAgent = await prisma.projectAgent.findFirst({
       where: {
-        id: assignedAgentId,
-        company: {
-          userId: session.userId,
-          projects: { some: { id: task.projectId } },
-        },
+        projectId: task.projectId,
+        agentId: assignedAgentId,
+        project: { company: { userId: session.userId } },
       },
-      select: { id: true },
+      select: { agentId: true },
     })
 
-    if (!agent) {
-      return badRequest("Assigned agent not found.")
+    if (!projectAgent) {
+      return badRequest("Agent is not assigned to this project.")
     }
   }
 
@@ -145,10 +143,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     const readAgents = await prisma.agent.findMany({
       where: {
         id: { in: readByAgentIds },
-        company: {
-          userId: session.userId,
-          projects: { some: { id: task.projectId } },
-        },
+        company: { userId: session.userId },
       },
       select: { id: true },
     })

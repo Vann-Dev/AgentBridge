@@ -60,13 +60,19 @@ export async function GET(request: NextRequest) {
   const agent = await agentAuth(request)
 
   if (!agent) {
-    return NextResponse.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json(
+      { statusCode: 401, error: "Unauthorized" },
+      { status: 401 }
+    )
   }
 
   const status = request.nextUrl.searchParams.get("status")
 
   if (status && !statuses.includes(status as Status)) {
-    return NextResponse.json({ statusCode: 400, error: "Invalid task status" }, { status: 400 })
+    return NextResponse.json(
+      { statusCode: 400, error: "Invalid task status" },
+      { status: 400 }
+    )
   }
 
   const tasks = await prisma.task.findMany({
@@ -120,7 +126,10 @@ export async function GET(request: NextRequest) {
     },
   })
 
-  return NextResponse.json({ statusCode: 200, tasks: tasks.map(serializeTaskReadMarkers) })
+  return NextResponse.json({
+    statusCode: 200,
+    tasks: tasks.map(serializeTaskReadMarkers),
+  })
 }
 
 /**
@@ -206,7 +215,10 @@ export async function POST(request: NextRequest) {
   const agent = await agentAuth(request)
 
   if (!agent) {
-    return NextResponse.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json(
+      { statusCode: 401, error: "Unauthorized" },
+      { status: 401 }
+    )
   }
 
   const body = (await request.json().catch(() => null)) as {
@@ -221,7 +233,8 @@ export async function POST(request: NextRequest) {
   } | null
 
   const projectId = typeof body?.projectId === "string" ? body.projectId : ""
-  const assignedAgentId = typeof body?.assignedAgentId === "string" ? body.assignedAgentId : ""
+  const assignedAgentId =
+    typeof body?.assignedAgentId === "string" ? body.assignedAgentId : ""
   const name = typeof body?.name === "string" ? body.name.trim() : ""
   const job = typeof body?.job === "string" ? body.job.trim() : ""
   const status = typeof body?.status === "string" ? body.status : "todo"
@@ -231,7 +244,10 @@ export async function POST(request: NextRequest) {
     typeof body?.blockingReason === "string" ? body.blockingReason.trim() : ""
 
   if (!readBy) {
-    return NextResponse.json({ statusCode: 400, error: "Invalid read markers" }, { status: 400 })
+    return NextResponse.json(
+      { statusCode: 400, error: "Invalid read markers" },
+      { status: 400 }
+    )
   }
 
   if (!projectId || !assignedAgentId || !name || !job) {
@@ -242,7 +258,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (!statuses.includes(status as Status)) {
-    return NextResponse.json({ statusCode: 400, error: "Invalid task status." }, { status: 400 })
+    return NextResponse.json(
+      { statusCode: 400, error: "Invalid task status." },
+      { status: 400 }
+    )
   }
 
   const project = await prisma.project.findFirst({
@@ -272,73 +291,88 @@ export async function POST(request: NextRequest) {
   }
 
   if (project.company.agents.length !== readBy.length) {
-    return NextResponse.json({ statusCode: 400, error: "Read marker agent not found" }, { status: 400 })
+    return NextResponse.json(
+      { statusCode: 400, error: "Read marker agent not found" },
+      { status: 400 }
+    )
   }
 
-  const task = await prisma.task.create({
-    data: {
-      projectId,
-      assignedAgentId,
-      name,
-      job,
-      status: status as Status,
-      note: note || null,
-      summaryUpdatedAt: note ? new Date() : null,
-      blockingReason: blockingReason || null,
-      ...agentTaskUpdater(agent),
-      readMarkers: {
-        create: project.company.agents.map((readAgent) => ({
-          agentId: readAgent.id,
-          status: status as Status,
-        })),
-      },
-    },
-    select: {
-      id: true,
-      name: true,
-      job: true,
-      status: true,
-      note: true,
-      summaryUpdatedAt: true,
-      blockingReason: true,
-      archivedAt: true,
-      taskUpdatedAt: true,
-      taskUpdatedById: true,
-      taskUpdatedByName: true,
-      taskUpdatedByType: true,
-      assigned: {
-        select: {
-          id: true,
-          name: true,
-          position: true,
+  const task = await prisma.$transaction(async (tx) => {
+    await tx.projectAgent.createMany({
+      data: [{ projectId: project.id, agentId: assignedAgentId }],
+      skipDuplicates: true,
+    })
+
+    return tx.task.create({
+      data: {
+        projectId,
+        assignedAgentId,
+        name,
+        job,
+        status: status as Status,
+        note: note || null,
+        summaryUpdatedAt: note ? new Date() : null,
+        blockingReason: blockingReason || null,
+        ...agentTaskUpdater(agent),
+        readMarkers: {
+          create: project.company.agents.map((readAgent) => ({
+            agentId: readAgent.id,
+            status: status as Status,
+          })),
         },
       },
-      readMarkers: {
-        select: {
-          agentId: true,
-          status: true,
-          readAt: true,
-          agent: {
-            select: {
-              id: true,
-              AgentId: true,
-              name: true,
-            },
+      select: {
+        id: true,
+        name: true,
+        job: true,
+        status: true,
+        note: true,
+        summaryUpdatedAt: true,
+        blockingReason: true,
+        archivedAt: true,
+        taskUpdatedAt: true,
+        taskUpdatedById: true,
+        taskUpdatedByName: true,
+        taskUpdatedByType: true,
+        assigned: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
           },
         },
-        orderBy: { readAt: "desc" },
+        readMarkers: {
+          select: {
+            agentId: true,
+            status: true,
+            readAt: true,
+            agent: {
+              select: {
+                id: true,
+                AgentId: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { readAt: "desc" },
+        },
       },
-    },
+    })
   })
 
-  return NextResponse.json({ statusCode: 201, task: serializeTaskReadMarkers(task) }, { status: 201 })
+  return NextResponse.json(
+    { statusCode: 201, task: serializeTaskReadMarkers(task) },
+    { status: 201 }
+  )
 }
 
 function parseReadByAgentIds(value: unknown) {
   if (value === undefined) return []
   if (!Array.isArray(value)) return null
 
-  const agentIds = value.filter((item): item is string => typeof item === "string" && Boolean(item))
+  const agentIds = value.filter(
+    (item): item is string => typeof item === "string" && Boolean(item)
+  )
 
   return agentIds.length === value.length ? Array.from(new Set(agentIds)) : null
 }

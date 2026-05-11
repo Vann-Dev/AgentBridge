@@ -175,12 +175,30 @@ const openApiDocument = swaggerJsdoc({
           },
           required: ["id", "name", "description"],
         },
+        ProjectAgent: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            AgentId: {
+              type: "string",
+              description: "Stable API identifier used in the AgentId header.",
+            },
+            name: { type: "string" },
+            position: { type: "string" },
+          },
+          required: ["id", "AgentId", "name", "position"],
+        },
         ProjectWithTasks: {
           allOf: [
             { $ref: "#/components/schemas/Project" },
             {
               type: "object",
               properties: {
+                projectAgents: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/ProjectAgent" },
+                  description: "Agents linked to this project and available for new task assignments.",
+                },
                 tasks: {
                   type: "array",
                   items: {
@@ -205,7 +223,7 @@ const openApiDocument = swaggerJsdoc({
                   },
                 },
               },
-              required: ["tasks"],
+              required: ["projectAgents", "tasks"],
             },
           ],
         },

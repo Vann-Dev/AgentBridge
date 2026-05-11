@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
+import { projectAgentSelect, serializeProjectAgents } from "@/lib/api/project-agents"
 import { serializeTaskDependencies } from "@/lib/api/task-dependencies"
 import { badRequest, notFound, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
@@ -34,11 +35,16 @@ export async function GET(_request: Request, { params }: RouteContext) {
             orderBy: { name: "asc" },
             select: {
               id: true,
+              AgentId: true,
               name: true,
               position: true,
             },
           },
         },
+      },
+      agents: {
+        orderBy: { agent: { name: "asc" } },
+        select: projectAgentSelect,
       },
     },
   })
@@ -149,6 +155,8 @@ export async function GET(_request: Request, { params }: RouteContext) {
     statusCode: 200,
     project: {
       ...project,
+      projectAgents: serializeProjectAgents(project.agents),
+      agents: undefined,
       tasks: tasks.map((task) =>
         serializeTaskDependencies({
           ...task,

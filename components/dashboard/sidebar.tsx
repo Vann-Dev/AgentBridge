@@ -3,10 +3,14 @@ import Link from "next/link"
 import {
   BotIcon,
   Building2Icon,
+  CalendarDaysIcon,
+  CheckIcon,
+  ChevronsUpDownIcon,
   ClipboardListIcon,
   FileTextIcon,
   HomeIcon,
   NotebookTextIcon,
+  PlusIcon,
   ScrollTextIcon,
   SettingsIcon,
 } from "lucide-react"
@@ -15,6 +19,14 @@ import { Button } from "@/components/ui/button"
 import { ChangePasswordDialog } from "@/components/dashboard/change-password-dialog"
 import { ChangeUsernameDialog } from "@/components/dashboard/change-username-dialog"
 import { CreateCompanyDialog } from "@/components/dashboard/create-company-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
 type Company = {
@@ -27,6 +39,7 @@ type DashboardSidebarProps = {
   activeCompany: Company | null
   activePath:
     | "overview"
+    | "brief"
     | "agents"
     | "projects"
     | "notes"
@@ -53,6 +66,12 @@ export function DashboardSidebar({
       href: dashboardHref(activeCompany?.id ?? null),
       key: "overview",
       icon: HomeIcon,
+    },
+    {
+      label: "Daily Brief",
+      href: dashboardHref(activeCompany?.id ?? null, "/brief"),
+      key: "brief",
+      icon: CalendarDaysIcon,
     },
     {
       label: "Agents",
@@ -107,31 +126,89 @@ export function DashboardSidebar({
       </Link>
 
       <div className="space-y-2">
-        <label className="flex items-center gap-2 px-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        <p className="flex items-center gap-2 px-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
           <Building2Icon className="size-3.5" />
           Company
-        </label>
-        <details className="group rounded-2xl border border-border bg-background p-2" open>
-          <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl px-3 py-2 text-sm font-medium">
-            <span className="truncate">{activeCompany?.name ?? "No company"}</span>
-            <span className="text-muted-foreground transition group-open:rotate-180">⌄</span>
-          </summary>
-          <div className="mt-2 space-y-1 border-t border-border pt-2">
-            {companies.map((company) => (
+        </p>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="group flex w-full items-center gap-3 rounded-3xl border border-border/80 bg-background/80 p-3 text-left shadow-sm transition hover:border-primary/30 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card data-[state=open]:border-primary/40 data-[state=open]:bg-muted/60"
+            >
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
+                <Building2Icon className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[0.68rem] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Active workspace
+                </span>
+                <span className="mt-0.5 block truncate text-sm font-semibold text-foreground">
+                  {activeCompany?.name ?? "No company selected"}
+                </span>
+              </span>
+              <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground transition group-hover:text-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-[16rem] p-2" sideOffset={8}>
+            <DropdownMenuLabel className="px-2 py-1.5">
+              <span className="text-[0.68rem] font-medium uppercase tracking-[0.16em]">
+                Switch company
+              </span>
+            </DropdownMenuLabel>
+            {companies.length ? (
+              <div className="max-h-64 overflow-y-auto">
+                {companies.map((company) => {
+                  const isActive = activeCompany?.id === company.id
+
+                  return (
+                    <DropdownMenuItem key={company.id} asChild>
+                      <Link
+                        href={dashboardHref(company.id)}
+                        className={cn(
+                          "flex min-w-0 items-center gap-2 rounded-xl px-2.5 py-2.5",
+                          isActive && "bg-accent text-accent-foreground"
+                        )}
+                      >
+                        <span className="min-w-0 flex-1 truncate font-medium">
+                          {company.name}
+                        </span>
+                        {isActive ? (
+                          <CheckIcon className="size-4 shrink-0 text-primary" />
+                        ) : null}
+                      </Link>
+                    </DropdownMenuItem>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="px-2.5 py-3 text-sm text-muted-foreground">
+                Create a company to start organizing agents and projects.
+              </p>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
               <Link
-                key={company.id}
-                href={dashboardHref(company.id)}
-                className={cn(
-                  "block rounded-xl px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground",
-                  activeCompany?.id === company.id && "bg-muted text-foreground"
-                )}
+                href={dashboardHref(activeCompany?.id ?? null, "/settings")}
+                className="flex items-center gap-2 rounded-xl px-2.5 py-2.5"
               >
-                {company.name}
+                <SettingsIcon className="size-4 text-muted-foreground" />
+                <span className="font-medium">Company settings</span>
               </Link>
-            ))}
-            <CreateCompanyDialog />
-          </div>
-        </details>
+            </DropdownMenuItem>
+            <CreateCompanyDialog
+              trigger={
+                <DropdownMenuItem
+                  onSelect={(event) => event.preventDefault()}
+                  className="gap-2 px-2.5 py-2.5"
+                >
+                  <PlusIcon className="size-4 text-muted-foreground" />
+                  <span className="font-medium">Create company</span>
+                </DropdownMenuItem>
+              }
+            />
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <nav className="mt-6 space-y-6">

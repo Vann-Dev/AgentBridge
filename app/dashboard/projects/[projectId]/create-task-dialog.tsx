@@ -100,7 +100,7 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
         <DialogHeader>
           <DialogTitle className="text-2xl">Create task</DialogTitle>
           <DialogDescription>
-            Add a task and assign it to an agent in this company.
+            Add a task and assign it to an agent linked to this project.
           </DialogDescription>
         </DialogHeader>
         <form action={action} className="space-y-4">
@@ -115,6 +115,7 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
           </div>
           <div className="space-y-2">
             <Label>Assigned agent</Label>
+            <p className="text-xs text-muted-foreground">Showing agents linked to this project.</p>
             <Select name="assignedAgentId" required>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select agent" />
@@ -208,7 +209,7 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
           </div>
           {mutation.error ? <p className="text-sm text-destructive">{mutation.error.message}</p> : null}
           {!agents.length ? (
-            <p className="text-sm text-muted-foreground">Create an agent before adding tasks.</p>
+            <p className="text-sm text-muted-foreground">Link project agents before adding tasks.</p>
           ) : null}
           <Button disabled={mutation.isPending || !agents.length} type="submit">
             {mutation.isPending ? "Creating..." : "Create task"}

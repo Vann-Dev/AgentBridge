@@ -43,6 +43,7 @@ export type TaskDependency = {
 
 export type ProjectAgent = {
   id: string
+  AgentId: string
   name: string
   position: string
 }
@@ -57,5 +58,6 @@ export type ProjectDetailData = {
     name: string
     agents: ProjectAgent[]
   }
+  projectAgents: ProjectAgent[]
   tasks: ProjectTask[]
 }
