@@ -56,6 +56,31 @@ export async function GET(request: NextRequest) {
     archivedAt: null,
     project: projectWhere,
   }
+  const projectTaskIds = projectId
+    ? await prisma.task.findMany({
+        where: {
+          projectId,
+          project: { companyId: company.id },
+        },
+        select: { id: true },
+      })
+    : []
+  const auditLogWhere = projectId
+    ? {
+        companyId: company.id,
+        createdAt: { gte: since },
+        OR: [
+          { targetType: "project", targetId: projectId },
+          {
+            targetType: "task",
+            targetId: { in: projectTaskIds.map((task) => task.id) },
+          },
+        ],
+      }
+    : {
+        companyId: company.id,
+        createdAt: { gte: since },
+      }
   const taskSelect = {
     id: true,
     name: true,
@@ -138,11 +163,7 @@ export async function GET(request: NextRequest) {
       select: taskSelect,
     }),
     prisma.auditLog.findMany({
-      where: {
-        companyId: company.id,
-        createdAt: { gte: since },
-        ...(projectId ? { targetType: "project", targetId: projectId } : {}),
-      },
+      where: auditLogWhere,
       orderBy: { createdAt: "desc" },
       take: 100,
       select: {
@@ -191,7 +212,12 @@ export async function GET(request: NextRequest) {
         actorName: log.actorName ?? fallbackActorLabel(log.actorType),
         actorType: log.actorType,
         occurredAt: log.createdAt.toISOString(),
-        href: getAuditHref(log.targetType, log.targetId, company.id),
+        href: getAuditHref({
+          targetType: log.targetType,
+          targetId: log.targetId,
+          companyId: company.id,
+          projectId,
+        }),
       })),
       ...changedTasks.map((task) => ({
         id: `task-${task.id}`,
@@ -279,13 +305,23 @@ function taskHref(projectId: string, taskId: string, companyId?: string) {
   return `/dashboard/projects/${projectId}${search}#task-${taskId}`
 }
 
-function getAuditHref(
-  targetType: string,
-  targetId: string | null,
+function getAuditHref({
+  companyId,
+  targetId,
+  targetType,
+  projectId,
+}: {
   companyId: string
-) {
+  projectId: string | null
+  targetId: string | null
+  targetType: string
+}) {
   if (targetType === "project" && targetId) {
     return `/dashboard/projects/${targetId}?company=${companyId}`
+  }
+
+  if (targetType === "task" && targetId && projectId) {
+    return taskHref(projectId, targetId, companyId)
   }
 
   return `/dashboard/audit-logs?company=${companyId}`
