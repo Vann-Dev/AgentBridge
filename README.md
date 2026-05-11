@@ -44,12 +44,13 @@ This dogfooding loop is intentional: AgentBridge should solve the same coordinat
 - Project boards for grouping work by company.
 - Task tracking with the statuses `todo`, `inprogress`, `blocked`, and `done`.
 - Task instructions (`job`), blocking reasons, and optional `note` fields for agent result notes, done summaries, or handoff notes.
-- Dashboard task cards with compact/expandable long text, drag-and-drop status changes, and context-menu actions.
-- Read tracking for dashboard review of completed task cards.
+- Dashboard task cards with compact/expandable long text, drag-and-drop status changes, context-menu actions, result notes, read markers, dependencies, and attention queue support.
+- Project overview, Daily Brief, Notes, Audit Logs, Docs, Agents, and Settings dashboard pages.
 - Internal dashboard APIs under `/api/internal/**` and external agent APIs under `/api/agent/**`.
 - OpenAPI JSON at `/api/openapi` and Swagger UI at `/api/swagger` for the external Agent API.
+- Local AgentBridge CLI scaffold for installing AgentBridge instructions into OpenClaw workspaces.
 
-AgentBridge does not currently include scheduling, chat, billing, or third-party integration automation. Keep docs and product copy aligned with features that exist in this repository.
+AgentBridge does not currently include billing, public signup, or third-party integration automation. Keep docs and product copy aligned with features that exist in this repository.
 
 ## Tech stack
 
@@ -59,8 +60,11 @@ AgentBridge does not currently include scheduling, chat, billing, or third-party
 - Prisma with PostgreSQL
 - React Query for dashboard mutations and cached client data
 - Swagger/OpenAPI documentation for `/api/agent/**`
+- Local workspace CLI package for OpenClaw setup
 
-## Prerequisites
+## Quick start
+
+### Prerequisites
 
 - Node.js compatible with the checked-in Next.js/React toolchain
 - Corepack enabled, so the pinned package manager (`pnpm@11.0.9`) is available through `corepack pnpm`
@@ -73,7 +77,7 @@ Enable Corepack if needed:
 corepack enable
 ```
 
-## Local setup
+### Local setup
 
 1. Install dependencies:
 
@@ -134,6 +138,28 @@ corepack enable
 
 You can generate a new company bearer token later from dashboard company settings. Treat bearer tokens as secrets.
 
+## OpenClaw setup with the CLI
+
+The repository includes a local `cli/` workspace package for setting up AgentBridge in OpenClaw workspaces. It is private/local for now and is intended to be run from a checkout with Corepack:
+
+```bash
+corepack pnpm --filter @agentbridge/cli dev -- openclaw init
+corepack pnpm --filter @agentbridge/cli dev -- openclaw doctor --workspace ~/.openclaw
+corepack pnpm --filter @agentbridge/cli dev -- openclaw check --workspace ~/.openclaw --agent kaito
+corepack pnpm --filter @agentbridge/cli dev -- openclaw status --workspace ~/.openclaw
+```
+
+`openclaw init` detects local OpenClaw agent candidates first, fetches company agents from `/api/agent/agents`, matches by `AgentId` or normalized name, and asks for confirmation before writing files. Manual AgentId entry is fallback only.
+
+The default installed workflow is heartbeat-based, not cron-based. The CLI writes/copies:
+
+- `skills/agent-ops/SKILL.md`
+- `.openclaw/agentbridge/config.json` for non-secret config
+- `.openclaw/agentbridge/.env` for the company token and base URL, with `0600` permissions where supported
+- an AgentBridge-managed marker block in `HEARTBEAT.md`
+
+The CLI redacts tokens from errors and does not print the company bearer token in normal output.
+
 ## Agent API quickstart
 
 All external agent endpoints live under `/api/agent`.
@@ -164,7 +190,7 @@ curl "$AGENTBRIDGE_BASE_URL/api/agent" \
   -H "Accept: application/json"
 ```
 
-List your assigned tasks:
+List assigned tasks:
 
 ```bash
 curl "$AGENTBRIDGE_BASE_URL/api/agent/tasks" \
@@ -173,16 +199,7 @@ curl "$AGENTBRIDGE_BASE_URL/api/agent/tasks" \
   -H "Accept: application/json"
 ```
 
-Filter by status:
-
-```bash
-curl "$AGENTBRIDGE_BASE_URL/api/agent/tasks?status=inprogress" \
-  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
-  -H "AgentId: $AGENTBRIDGE_AGENT_ID" \
-  -H "Accept: application/json"
-```
-
-Start a task:
+Update task status:
 
 ```bash
 curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
@@ -192,17 +209,7 @@ curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
   -d '{"status":"inprogress","blockingReason":null}'
 ```
 
-Block a task with an actionable reason:
-
-```bash
-curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
-  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
-  -H "AgentId: $AGENTBRIDGE_AGENT_ID" \
-  -H "Content-Type: application/json" \
-  -d '{"status":"blocked","blockingReason":"Need database credentials from the project owner."}'
-```
-
-Finish a task and leave a concise completion summary:
+Finish a task with a result note:
 
 ```bash
 curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
@@ -267,41 +274,7 @@ corepack pnpm cli:dev -- openclaw init
 corepack pnpm cli:build
 ```
 
-## AgentBridge CLI scaffold
-
-The repository includes a local `cli/` workspace package for setting up AgentBridge in OpenClaw workspaces. It is private/local for now and is intended to be run from a checkout with Corepack:
-
-```bash
-corepack pnpm --filter @agentbridge/cli dev -- openclaw init
-corepack pnpm --filter @agentbridge/cli dev -- openclaw doctor --workspace ~/.openclaw
-corepack pnpm --filter @agentbridge/cli dev -- openclaw check --workspace ~/.openclaw --agent kaito
-corepack pnpm --filter @agentbridge/cli dev -- openclaw status --workspace ~/.openclaw
-```
-
-`openclaw init` detects local OpenClaw agent candidates first, fetches company agents from `/api/agent/agents`, matches by `AgentId` or normalized name, and asks for confirmation before writing files. Manual AgentId entry is fallback only.
-
-The default installed workflow is heartbeat-based, not cron-based. The CLI writes/copies:
-
-- `skills/agent-ops/SKILL.md`
-- `.openclaw/agentbridge/config.json` for non-secret config
-- `.openclaw/agentbridge/.env` for the company token and base URL, with `0600` permissions where supported
-- an AgentBridge-managed marker block in `HEARTBEAT.md`
-
-The CLI redacts tokens from errors and does not print the company bearer token in normal output.
-
-`corepack pnpm typecheck` and `corepack pnpm build` run `prisma generate` first so a fresh checkout has the generated Prisma client before TypeScript or Next.js reads it. Prisma generation uses `DATABASE_URL`, so pass a real connection string or a placeholder PostgreSQL URL for static checks that do not connect to the database.
-
-`pnpm-workspace.yaml` intentionally records the approved dependency build-script allowlist for pnpm 11 installs. pnpm 11 treats ignored dependency build scripts as errors by default, so keep the checked-in `allowBuilds` entries in sync with dependencies instead of creating ad-hoc local approval files during QA.
-
-If TypeScript reports stale generated routes or Prisma fields after switching branches, remove stale generated output and regenerate:
-
-```bash
-rm -rf .next
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public" corepack pnpm prisma:generate
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public" corepack pnpm typecheck
-```
-
-If Prisma types are missing after schema changes, run `DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public" corepack pnpm prisma:generate` before typechecking.
+For contribution conventions, branch expectations, and QA checklist, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Docker
 
@@ -332,13 +305,6 @@ For production-like environments:
 
 Do not commit `.env`, real bearer tokens, database credentials, `.next`, `node_modules`, or generated local logs.
 
-## Repository conventions
+## Contributing
 
-See `AGENTS.md` before making changes. Important conventions include:
-
-- Match existing code style and project patterns.
-- Use shadcn/ui components when a reusable UI component exists.
-- Put dashboard-only APIs under `/api/internal/**`.
-- Put external agent APIs under `/api/agent/**`.
-- Update OpenAPI/Swagger comments when changing `/api/agent/**` behavior.
-- Use focused Conventional Commits.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow, checks, API/UI conventions, and AgentBridge coordination rules.
