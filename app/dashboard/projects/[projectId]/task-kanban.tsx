@@ -70,13 +70,24 @@ type TaskCard = {
   job: string
   status: Status
   note: string | null
+  summaryUpdatedAt: string | Date | null
   readMarkers: TaskReadMarker[]
   blockingReason: string | null
+  dependencies: TaskDependency[]
+  dependencyIds: string[]
+  unblocks: TaskDependency[]
+  isDependencyReady: boolean
   assigned: {
     id: string
     name: string
     position: string
   }
+}
+
+type TaskDependency = {
+  id: string
+  name: string
+  status: Status
 }
 
 type AgentOption = {
@@ -175,6 +186,7 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
         note: string
         readByAgentIds: string[]
         blockingReason: string
+        dependencyIds: string[]
       }
     }) =>
       apiJson(`/api/internal/tasks/${taskId}`, {
@@ -248,6 +260,7 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
         note,
         readByAgentIds: formData.getAll("readByAgentIds").map(String),
         blockingReason: String(formData.get("blockingReason") ?? ""),
+        dependencyIds: formData.getAll("dependencyIds").map(String),
       },
     })
   }
@@ -344,6 +357,14 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
                               <p className="mt-1 font-medium">{task.assigned.name}</p>
                               <p className="text-muted-foreground">{task.assigned.position}</p>
                             </div>
+                            {task.dependencies.length ? (
+                              <DependencySummary task={task} />
+                            ) : null}
+                            {task.unblocks.length ? (
+                              <p className="text-xs text-muted-foreground">
+                                Unblocks {task.unblocks.length} task{task.unblocks.length === 1 ? "" : "s"}.
+                              </p>
+                            ) : null}
                             {task.note ? <ExpandableText label="Done summary" text={task.note} /> : null}
                             {task.blockingReason ? (
                               <ExpandableText
@@ -441,6 +462,7 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
                   </SelectContent>
                 </Select>
               </div>
+              <DependencyFields currentTaskId={editingTask.id} tasks={currentTasks} defaultDependencyIds={editingTask.dependencyIds} />
               <div className="space-y-2">
                 <Label htmlFor="edit-task-note">Done summary / note</Label>
                 <Textarea
@@ -615,6 +637,75 @@ function ExpandableText({
     </div>
   )
 }
+
+function DependencyFields({
+  currentTaskId,
+  defaultDependencyIds,
+  tasks,
+}: {
+  currentTaskId?: string
+  defaultDependencyIds: string[]
+  tasks: TaskCard[]
+}) {
+  const options = tasks.filter((task) => task.id !== currentTaskId)
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-3 text-sm">
+      <div>
+        <Label>Dependencies</Label>
+        <p className="text-muted-foreground">Select tasks that must be done before this task is ready.</p>
+      </div>
+      {options.length ? (
+        <div className="grid max-h-44 gap-2 overflow-auto pr-1 sm:grid-cols-2">
+          {options.map((task) => (
+            <label key={task.id} className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2">
+              <input
+                name="dependencyIds"
+                type="checkbox"
+                value={task.id}
+                defaultChecked={defaultDependencyIds.includes(task.id)}
+                className="mt-1 size-4 accent-primary"
+              />
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{task.name}</span>
+                <span className="block text-xs text-muted-foreground">{statusLabels.get(task.status)}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-xl bg-muted px-3 py-2 text-muted-foreground">No other tasks are available.</p>
+      )}
+    </div>
+  )
+}
+
+function DependencySummary({ task }: { task: TaskCard }) {
+  const doneCount = task.dependencies.filter((dependency) => dependency.status === Status.done).length
+
+  return (
+    <div className="rounded-2xl border bg-muted p-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Dependencies</p>
+        <Badge variant={task.isDependencyReady ? "secondary" : "outline"}>
+          {doneCount}/{task.dependencies.length} done
+        </Badge>
+      </div>
+      <div className="mt-2 space-y-1">
+        {task.dependencies.slice(0, 3).map((dependency) => (
+          <p key={dependency.id} className="truncate text-muted-foreground">
+            {dependency.status === Status.done ? "✓" : "•"} {dependency.name}
+          </p>
+        ))}
+        {task.dependencies.length > 3 ? (
+          <p className="text-xs text-muted-foreground">+{task.dependencies.length - 3} more</p>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+const statusLabels = new Map(columns.map((column) => [column.key, column.label]))
 
 function ReadBadge({ agents, task }: { agents: AgentOption[]; task: TaskCard }) {
   const currentStatusReads = task.readMarkers.filter((marker) => marker.status === task.status)

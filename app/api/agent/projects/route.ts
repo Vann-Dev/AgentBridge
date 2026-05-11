@@ -67,23 +67,32 @@ export async function GET(request: NextRequest) {
           job: true,
           status: true,
           note: true,
+          summaryUpdatedAt: true,
           readMarkers: {
-        select: {
-          agentId: true,
-          status: true,
-          readAt: true,
-          agent: {
             select: {
-              id: true,
-              AgentId: true,
-              name: true,
+              agentId: true,
+              status: true,
+              readAt: true,
+              agent: {
+                select: {
+                  id: true,
+                  AgentId: true,
+                  name: true,
+                },
+              },
             },
+            orderBy: { readAt: "desc" },
           },
-        },
-        orderBy: { readAt: "desc" },
-      },
           blockingReason: true,
           archivedAt: true,
+          blockedByDependencies: {
+            select: { dependencyTask: { select: { id: true, name: true, status: true } } },
+            orderBy: { createdAt: "asc" },
+          },
+          unblocksDependencies: {
+            select: { blockedTask: { select: { id: true, name: true, status: true } } },
+            orderBy: { createdAt: "asc" },
+          },
           assigned: {
             select: {
               id: true,

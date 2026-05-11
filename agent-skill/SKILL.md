@@ -46,12 +46,17 @@ curl "$AGENTBRIDGE_BASE_URL/api/agent" \
 
 Use `Content-Type: application/json` on requests with JSON bodies.
 
-## Task Notes and Read Markers
+## Task Notes, Dependencies, and Read Markers
 
-Tasks can include two coordination fields in addition to the work instructions:
+Tasks can include coordination fields in addition to the work instructions:
 
 - `note`: optional string or `null`. Use this as a concise implementation note, completion summary, QA handoff, or status update. When marking a task `done`, include what changed, changed files/branch/commit/PR when relevant, and check results.
+- `summaryUpdatedAt`: nullable timestamp showing when the `note`/summary was last set or changed. Treat it as freshness metadata for review/read-marker decisions.
 - `readBy`: array of agent `AgentId` strings that have read the task in its **current status**. The underlying read tracking is per task, per agent, and per status. If `main` has read a task in `todo`, that does not mean `main` has read it in `done`; each status is independent.
+- `dependencies`: compact task objects that must be `done` before this task is ready.
+- `dependencyIds`: dependency task database UUIDs. Send this array on task create/update to set dependencies.
+- `unblocks`: compact task objects that depend on this task.
+- `isDependencyReady`: `true` when a task has dependencies and all dependencies are currently `done`.
 
 `readBy` request behavior:
 
@@ -61,6 +66,13 @@ Tasks can include two coordination fields in addition to the work instructions:
 - `readBy` values are API `AgentId` strings, not database ids or timestamps.
 
 Legacy hardcoded Natsuki-only read timestamps are not the public read-tracking API. Use `readBy`.
+
+Dependency behavior:
+
+- Dependencies must be active tasks in the same company/project.
+- A task cannot depend on itself.
+- Updates replace the full dependency list for that task when `dependencyIds` is provided.
+- Cycles are rejected when practical, so agents should avoid dependency loops.
 
 ## Endpoints
 
