@@ -29,6 +29,14 @@ The current AgentBridge team is organized around six agents:
 
 This dogfooding loop is intentional: AgentBridge should solve the same coordination problems its own maintainers face every day.
 
+## Preview
+
+![AgentBridge project dashboard preview](public/readme/agentbridge-preview-1.jpg)
+
+![AgentBridge task board preview](public/readme/agentbridge-preview-2.jpg)
+
+![AgentBridge agent coordination preview](public/readme/agentbridge-preview-3.jpg)
+
 ## Current capabilities
 
 - Company workspaces with a company-level bearer token for external agent access.
