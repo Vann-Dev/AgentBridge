@@ -10,17 +10,22 @@ type RouteContext = {
 }
 
 export async function GET(_request: Request, { params }: RouteContext) {
-  const { session, response } = await requireInternalSession()
+  const { session, response: authResponse } = await requireInternalSession()
 
-  if (response) return response
+  if (authResponse) return authResponse
 
+  const startedAt = Date.now()
   const { projectId } = await params
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
       company: { userId: session.userId },
     },
-    include: {
+    select: {
+      id: true,
+      companyId: true,
+      name: true,
+      description: true,
       company: {
         select: {
           id: true,
@@ -35,58 +40,6 @@ export async function GET(_request: Request, { params }: RouteContext) {
           },
         },
       },
-      tasks: {
-        where: { archivedAt: null },
-        include: {
-          assigned: {
-            select: {
-              id: true,
-              name: true,
-              position: true,
-            },
-          },
-          readMarkers: {
-            select: {
-              agentId: true,
-              status: true,
-              readAt: true,
-              agent: {
-                select: {
-                  id: true,
-                  AgentId: true,
-                  name: true,
-                },
-              },
-            },
-            orderBy: { readAt: "desc" },
-          },
-          blockedByDependencies: {
-            select: {
-              dependencyTask: {
-                select: {
-                  id: true,
-                  name: true,
-                  status: true,
-                },
-              },
-            },
-            orderBy: { createdAt: "asc" },
-          },
-          unblocksDependencies: {
-            select: {
-              blockedTask: {
-                select: {
-                  id: true,
-                  name: true,
-                  status: true,
-                },
-              },
-            },
-            orderBy: { createdAt: "asc" },
-          },
-        },
-        orderBy: { name: "asc" },
-      },
     },
   })
 
@@ -94,13 +47,117 @@ export async function GET(_request: Request, { params }: RouteContext) {
     return notFound("Project not found.")
   }
 
-  return NextResponse.json({
+  const tasks = await prisma.task.findMany({
+    where: { projectId: project.id, archivedAt: null },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      job: true,
+      note: true,
+      summaryUpdatedAt: true,
+      status: true,
+      blockingReason: true,
+      assigned: {
+        select: {
+          id: true,
+          name: true,
+          position: true,
+        },
+      },
+    },
+  })
+  const taskIds = tasks.map((task) => task.id)
+
+  const [readMarkers, dependencyEdges] = taskIds.length
+    ? await Promise.all([
+        prisma.taskReadMarker.findMany({
+          where: { taskId: { in: taskIds } },
+          orderBy: { readAt: "desc" },
+          select: {
+            taskId: true,
+            agentId: true,
+            status: true,
+            readAt: true,
+            agent: {
+              select: {
+                id: true,
+                AgentId: true,
+                name: true,
+              },
+            },
+          },
+        }),
+        prisma.taskDependency.findMany({
+          where: {
+            OR: [
+              { blockedTaskId: { in: taskIds } },
+              { dependencyTaskId: { in: taskIds } },
+            ],
+          },
+          orderBy: { createdAt: "asc" },
+          select: {
+            blockedTaskId: true,
+            dependencyTaskId: true,
+            blockedTask: {
+              select: {
+                id: true,
+                name: true,
+                status: true,
+                archivedAt: true,
+              },
+            },
+            dependencyTask: {
+              select: {
+                id: true,
+                name: true,
+                status: true,
+                archivedAt: true,
+              },
+            },
+          },
+        }),
+      ])
+    : [[], []]
+
+  const readMarkersByTask = new Map<string, typeof readMarkers>()
+  for (const readMarker of readMarkers) {
+    const taskReadMarkers = readMarkersByTask.get(readMarker.taskId) ?? []
+    taskReadMarkers.push(readMarker)
+    readMarkersByTask.set(readMarker.taskId, taskReadMarkers)
+  }
+
+  const dependenciesByTask = new Map<string, Array<{ dependencyTask: { id: string; name: string; status: typeof tasks[number]["status"] } }>>()
+  const unblocksByTask = new Map<string, Array<{ blockedTask: { id: string; name: string; status: typeof tasks[number]["status"] } }>>()
+  for (const edge of dependencyEdges) {
+    if (edge.blockedTask.archivedAt || edge.dependencyTask.archivedAt) continue
+
+    const blockedByDependencies = dependenciesByTask.get(edge.blockedTaskId) ?? []
+    blockedByDependencies.push({ dependencyTask: edge.dependencyTask })
+    dependenciesByTask.set(edge.blockedTaskId, blockedByDependencies)
+
+    const unblocksDependencies = unblocksByTask.get(edge.dependencyTaskId) ?? []
+    unblocksDependencies.push({ blockedTask: edge.blockedTask })
+    unblocksByTask.set(edge.dependencyTaskId, unblocksDependencies)
+  }
+
+  const jsonResponse = NextResponse.json({
     statusCode: 200,
     project: {
       ...project,
-      tasks: project.tasks.map(serializeTaskDependencies),
+      tasks: tasks.map((task) =>
+        serializeTaskDependencies({
+          ...task,
+          readMarkers: readMarkersByTask.get(task.id) ?? [],
+          blockedByDependencies: dependenciesByTask.get(task.id) ?? [],
+          unblocksDependencies: unblocksByTask.get(task.id) ?? [],
+        })
+      ),
     },
   })
+  jsonResponse.headers.set("Server-Timing", `project-detail;dur=${Date.now() - startedAt}`)
+
+  return jsonResponse
 }
 
 export async function PATCH(request: Request, { params }: RouteContext) {

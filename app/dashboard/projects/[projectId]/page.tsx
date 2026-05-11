@@ -12,19 +12,30 @@ type ProjectDetailPageProps = {
 
 export default async function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   const { projectId } = await params
-  const initialContext = await getDashboardContext()
+  const { session, companies } = await getDashboardContext()
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
       company: {
-        userId: initialContext.session.userId,
+        userId: session.userId,
       },
     },
-    include: {
+    select: {
+      id: true,
+      companyId: true,
+      name: true,
+      description: true,
       company: {
-        include: {
+        select: {
+          id: true,
+          name: true,
           agents: {
             orderBy: { name: "asc" },
+            select: {
+              id: true,
+              name: true,
+              position: true,
+            },
           },
         },
       },
@@ -34,8 +45,6 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
   if (!project) {
     notFound()
   }
-
-  const { session, companies } = await getDashboardContext(project.companyId)
 
   return (
     <DashboardShell

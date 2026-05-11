@@ -54,12 +54,15 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
   const totalTasks = tasks.length
   const doneTasks = tasks.filter((task) => task.status === Status.done)
   const blockedTasks = tasks.filter((task) => task.status === Status.blocked)
-  const attentionTasks = tasks.filter(
-    (task) =>
+  const attentionTasks = tasks.filter((task) => {
+    if (task.status === Status.done) return false
+
+    return (
       task.status === Status.blocked ||
       task.isDependencyReady ||
       /qa|fix|review|blocked|failure/i.test(`${task.name} ${task.blockingReason ?? ""}`)
-  )
+    )
+  })
   const activeTasks = tasks.filter((task) => task.status === Status.inprogress)
   const todoTasks = tasks.filter((task) => task.status === Status.todo)
   const donePercent = totalTasks ? Math.round((doneTasks.length / totalTasks) * 100) : 0
