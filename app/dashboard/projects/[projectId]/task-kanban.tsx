@@ -56,6 +56,7 @@ import type { ProjectAgent, ProjectTask } from "./types"
 
 type TaskKanbanProps = {
   agents: ProjectAgent[]
+  companyId: string
   projectId: string
   tasks: ProjectTask[]
 }
@@ -67,7 +68,7 @@ const columns = [
   { key: Status.done, label: "Done" },
 ] as const
 
-export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
+export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanProps) {
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<ProjectTask | null>(null)
   const [deletingTask, setDeletingTask] = useState<ProjectTask | null>(null)
@@ -113,7 +114,12 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
         queryClient.setQueryData(["project", projectId], context.previous)
       }
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
+    },
   })
   const updateMutation = useMutation({
     mutationFn: ({
@@ -138,6 +144,9 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
     onSuccess: () => {
       setEditingTask(null)
       queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
     },
   })
   const deleteMutation = useMutation({
@@ -148,6 +157,9 @@ export function TaskKanban({ agents, projectId, tasks }: TaskKanbanProps) {
     onSuccess: () => {
       setDeletingTask(null)
       queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
     },
   })
   const currentTasks = projectQuery.data.project.tasks

@@ -31,11 +31,12 @@ type AgentOption = {
 }
 
 type CreateTaskDialogProps = {
-  projectId: string
   agents: AgentOption[]
+  companyId: string
+  projectId: string
 }
 
-export function CreateTaskDialog({ projectId, agents }: CreateTaskDialogProps) {
+export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDialogProps) {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: (payload: {
@@ -52,7 +53,12 @@ export function CreateTaskDialog({ projectId, agents }: CreateTaskDialogProps) {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
+    },
   })
 
   function action(formData: FormData) {

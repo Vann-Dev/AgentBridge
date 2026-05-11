@@ -40,7 +40,12 @@ export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
       apiJson(`/api/internal/agents/${agent.id}`, {
         method: "DELETE",
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agents", companyId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["project"] })
+    },
   })
   return (
     <div className="flex justify-end gap-2">
