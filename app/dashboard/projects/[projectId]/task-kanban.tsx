@@ -543,6 +543,35 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
 }
 
 
+
+export function TaskKanbanSkeleton() {
+  return (
+    <div className="space-y-3" aria-label="Loading project tasks">
+      <div className="grid gap-4 xl:grid-cols-4">
+        {columns.map((column) => (
+          <Card key={column.key} className="min-h-80" size="sm">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>{column.label}</CardTitle>
+                <Badge variant="outline">—</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Array.from({ length: 3 }, (_, index) => (
+                <div key={index} className="space-y-3 rounded-2xl border bg-background p-4">
+                  <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+                  <div className="h-14 animate-pulse rounded-2xl bg-muted" />
+                  <div className="h-16 animate-pulse rounded-2xl bg-muted" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ExpandableText({
   className,
   label,
