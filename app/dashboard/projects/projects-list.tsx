@@ -44,15 +44,17 @@ type ProjectRow = {
 
 type ProjectsListProps = {
   companyId: string
+  initialProjects: ProjectRow[]
 }
 
-export function ProjectsList({ companyId }: ProjectsListProps) {
+export function ProjectsList({ companyId, initialProjects }: ProjectsListProps) {
   const projectsQuery = useQuery({
     queryKey: ["projects", companyId],
     queryFn: () =>
       apiJson<{ projects: ProjectRow[] }>(`/api/internal/projects?companyId=${companyId}`),
+    initialData: { projects: initialProjects },
   })
-  const projects = projectsQuery.data?.projects ?? []
+  const projects = projectsQuery.data.projects
 
   if (projectsQuery.isLoading) {
     return <ProjectsListSkeleton />
