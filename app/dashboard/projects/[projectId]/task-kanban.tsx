@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -70,6 +69,7 @@ type TaskCard = {
   job: string
   status: Status
   note: string | null
+  summaryUpdatedAt: string | Date | null
   taskUpdatedAt: string | Date
   taskUpdatedById: string | null
   taskUpdatedByName: string | null
@@ -326,7 +326,8 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
                     <ContextMenu key={task.id}>
                       <ContextMenuTrigger asChild>
                         <Card
-                          className="cursor-grab bg-background opacity-100 transition active:cursor-grabbing"
+                          id={`task-${task.id}`}
+                          className="scroll-mt-24 cursor-grab bg-background opacity-100 transition active:cursor-grabbing target:ring-2 target:ring-primary/60 target:ring-offset-2"
                           draggable
                           onDragEnd={() => setDraggingTaskId(null)}
                           onDragStart={(event) => {
@@ -336,7 +337,7 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
                           }}
                           size="sm"
                         >
-                          <CardHeader>
+                          <CardHeader className="space-y-3">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0 space-y-1">
                                 <CardTitle>{task.name}</CardTitle>
@@ -344,26 +345,22 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
                               </div>
                               <ReadBadge task={task} agents={agents} />
                             </div>
-                            <CardDescription>
-                              <ExpandableText label="Job" text={task.job} />
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            <div className="rounded-2xl bg-muted p-3 text-sm">
-                              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                                Assigned
-                              </p>
-                              <p className="mt-1 font-medium">{task.assigned.name}</p>
-                              <p className="text-muted-foreground">{task.assigned.position}</p>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <Badge variant="outline">{task.assigned.name}</Badge>
+                              <span>{task.assigned.position}</span>
+                              {task.summaryUpdatedAt ? (
+                                <span>Summary updated {formatRelativeTime(new Date(task.summaryUpdatedAt))}</span>
+                              ) : null}
                             </div>
-                            {task.note ? <ExpandableText label="Done summary" text={task.note} /> : null}
                             {task.blockingReason ? (
-                              <ExpandableText
-                                className="border border-destructive/30 bg-destructive/10 text-destructive"
-                                label="Blocking reason"
-                                text={task.blockingReason}
-                              />
+                              <p className="line-clamp-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                                Blocked: {task.blockingReason}
+                              </p>
                             ) : null}
+                            {task.note ? <TaskTextPreview label="Done summary" text={task.note} lines={3} /> : null}
+                          </CardHeader>
+                          <CardContent>
+                            <TaskDetails task={task} />
                           </CardContent>
                         </Card>
                       </ContextMenuTrigger>
@@ -584,6 +581,55 @@ export function TaskKanbanSkeleton() {
   )
 }
 
+function TaskDetails({ task }: { task: TaskCard }) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="space-y-3">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-8 px-2 text-muted-foreground"
+        aria-expanded={expanded}
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          setExpanded((value) => !value)
+        }}
+      >
+        {expanded ? "Hide details" : "Show details"}
+        <ChevronDown className={cn("transition-transform", expanded ? "rotate-180" : "")} />
+      </Button>
+      {expanded ? (
+        <div className="space-y-3">
+          <ExpandableText label="Job" text={task.job} />
+          {task.note ? <ExpandableText label="Done summary" text={task.note} /> : null}
+          {task.blockingReason ? (
+            <ExpandableText
+              className="border border-destructive/30 bg-destructive/10 text-destructive"
+              label="Blocking reason"
+              text={task.blockingReason}
+            />
+          ) : null}
+          <ReadMarkerDetails task={task} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function TaskTextPreview({ label, text, lines = 2 }: { label: string; text: string; lines?: 2 | 3 }) {
+  return (
+    <div className="rounded-2xl bg-muted p-3 text-sm">
+      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+      <p className={cn("mt-1 whitespace-pre-wrap text-muted-foreground", lines === 3 ? "line-clamp-3" : "line-clamp-2")}>
+        {text}
+      </p>
+    </div>
+  )
+}
+
 function ExpandableText({
   className,
   label,
@@ -624,6 +670,27 @@ function ExpandableText({
       >
         {text}
       </p>
+    </div>
+  )
+}
+
+function ReadMarkerDetails({ task }: { task: TaskCard }) {
+  const currentStatusReads = task.readMarkers.filter((marker) => marker.status === task.status)
+
+  return (
+    <div className="rounded-2xl bg-muted p-3 text-sm">
+      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Read markers</p>
+      {currentStatusReads.length ? (
+        <ul className="mt-2 space-y-1 text-muted-foreground">
+          {currentStatusReads.map((marker) => (
+            <li key={`${marker.agentId}-${marker.status}`}>
+              {marker.agent.name} read {marker.status} {formatRelativeTime(new Date(marker.readAt))}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-muted-foreground">No agents have read this {task.status} card yet.</p>
+      )}
     </div>
   )
 }

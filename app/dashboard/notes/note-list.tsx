@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { ChevronDown } from "lucide-react"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,18 +34,49 @@ type NoteTask = {
   }
 }
 
+type ReviewReader = {
+  id: string
+  AgentId: string
+  name: string
+}
+
 type NoteListProps = {
   companyId: string
+  reviewReader: ReviewReader | null
   initialNotes: NoteTask[]
 }
 
-export function NoteList({ companyId, initialNotes }: NoteListProps) {
+export function NoteList({ companyId, reviewReader, initialNotes }: NoteListProps) {
+  const queryClient = useQueryClient()
   const notesQuery = useQuery({
     queryKey: ["notes", companyId],
-    queryFn: () => apiJson<{ notes: NoteTask[] }>(`/api/internal/notes?company=${companyId}`),
-    initialData: { notes: initialNotes },
+    queryFn: () =>
+      apiJson<{ notes: NoteTask[]; reviewReader: ReviewReader | null }>(
+        `/api/internal/notes?company=${companyId}`
+      ),
+    initialData: { notes: initialNotes, reviewReader },
+  })
+  const markReadMutation = useMutation({
+    mutationFn: (taskId: string) =>
+      apiJson(`/api/internal/notes/${taskId}/read`, {
+        method: "POST",
+      }),
+    onSuccess: (_data, taskId) => {
+      queryClient.setQueryData<{ notes: NoteTask[] }>(["notes", companyId], (current) =>
+        current
+          ? { notes: current.notes.filter((task) => task.id !== taskId) }
+          : current
+      )
+      queryClient.invalidateQueries({ queryKey: ["project"] })
+    },
   })
   const notes = notesQuery.data.notes
+  const currentReviewReader = notesQuery.data.reviewReader ?? reviewReader
+  const reviewReaderLabel = currentReviewReader
+    ? currentReviewReader.AgentId === "main"
+      ? "Natsuki/main"
+      : `${currentReviewReader.name} (${currentReviewReader.AgentId})`
+    : "No review reader"
 
   return (
     <div className="space-y-4">
@@ -60,7 +91,14 @@ export function NoteList({ companyId, initialNotes }: NoteListProps) {
           </Button>
         </div>
       ) : null}
-      {notes.length ? (
+      {!currentReviewReader ? (
+        <div className="rounded-2xl border border-dashed p-8 text-center">
+          <p className="font-medium">No review reader available</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Add an agent to this company before marking done summaries reviewed.
+          </p>
+        </div>
+      ) : notes.length ? (
         <div className="grid gap-4">
           {notes.map((task) => (
             <Card key={task.id} size="sm">
@@ -82,23 +120,40 @@ export function NoteList({ companyId, initialNotes }: NoteListProps) {
               </CardHeader>
               <CardContent className="space-y-3">
                 <ExpandableNote text={task.note} />
-                <Button asChild type="button" variant="outline" size="sm">
-                  <Link href={`/dashboard/projects/${task.project.id}?company=${companyId}#task-${task.id}`}>
-                    Open source task
-                  </Link>
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild type="button" variant="outline" size="sm">
+                    <Link href={`/dashboard/projects/${task.project.id}?company=${companyId}#task-${task.id}`}>
+                      Open source task
+                    </Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={markReadMutation.isPending}
+                    onClick={() => markReadMutation.mutate(task.id)}
+                  >
+                    {markReadMutation.isPending ? (
+                      "Marking..."
+                    ) : (
+                      `Mark reviewed by ${reviewReaderLabel}`
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed p-8 text-center">
-          <p className="font-medium">No result notes yet</p>
+          <p className="font-medium">No unread done summaries</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Agent handoffs and done summaries written in task notes will appear here.
+            New done task summaries appear here until {reviewReaderLabel} marks them reviewed.
           </p>
         </div>
       )}
+      {markReadMutation.error ? (
+        <p className="text-sm text-destructive">{markReadMutation.error.message}</p>
+      ) : null}
     </div>
   )
 }

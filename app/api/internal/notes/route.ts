@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
+import { findReviewReader } from "@/lib/api/review-reader"
 import { prisma } from "@/lib/prisma"
 
 export async function GET(request: NextRequest) {
@@ -23,10 +24,21 @@ export async function GET(request: NextRequest) {
     return badRequest("Company not found.")
   }
 
+  const reviewReader = await findReviewReader(company.id)
+
+  if (!reviewReader) {
+    return NextResponse.json({
+      statusCode: 200,
+      notes: [],
+      reviewReader: null,
+    })
+  }
+
   const notes = await prisma.task.findMany({
     where: {
       archivedAt: null,
       note: { not: null },
+      status: "done",
       project: { companyId: company.id },
     },
     orderBy: [{ summaryUpdatedAt: "desc" }, { name: "asc" }],
@@ -50,15 +62,32 @@ export async function GET(request: NextRequest) {
           name: true,
         },
       },
+      readMarkers: {
+        where: {
+          status: "done",
+          agentId: reviewReader.id,
+        },
+        select: { readAt: true },
+      },
     },
+  })
+  const unreadNotes = notes.filter((task) => {
+    const readAt = task.readMarkers[0]?.readAt
+
+    return !readAt || !task.summaryUpdatedAt || readAt < task.summaryUpdatedAt
   })
 
   return NextResponse.json({
     statusCode: 200,
-    notes: notes.map((task) => ({
-      ...task,
+    reviewReader,
+    notes: unreadNotes.map((task) => ({
+      id: task.id,
+      name: task.name,
+      status: task.status,
       note: task.note ?? "",
       summaryUpdatedAt: task.summaryUpdatedAt?.toISOString() ?? null,
+      assigned: task.assigned,
+      project: task.project,
     })),
   })
 }

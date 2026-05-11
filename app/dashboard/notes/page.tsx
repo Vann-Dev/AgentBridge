@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { findReviewReader, getReviewReaderLabel } from "@/lib/api/review-reader"
 import { getDashboardContext } from "@/lib/dashboard/companies"
 import { prisma } from "@/lib/prisma"
 
@@ -25,10 +26,13 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
     redirect("/dashboard?createCompany=1")
   }
 
-  const notes = await prisma.task.findMany({
+  const reviewReader = await findReviewReader(activeCompany.id)
+  const notes = reviewReader
+    ? await prisma.task.findMany({
     where: {
       archivedAt: null,
       note: { not: null },
+      status: "done",
       project: { companyId: activeCompany.id },
     },
     orderBy: [{ summaryUpdatedAt: "desc" }, { name: "asc" }],
@@ -52,7 +56,20 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
           name: true,
         },
       },
+      readMarkers: {
+        where: {
+          status: "done",
+          agentId: reviewReader.id,
+        },
+        select: { readAt: true },
+      },
     },
+      })
+    : []
+  const unreadNotes = notes.filter((task) => {
+    const readAt = task.readMarkers[0]?.readAt
+
+    return !readAt || !task.summaryUpdatedAt || readAt < task.summaryUpdatedAt
   })
 
   return (
@@ -66,16 +83,22 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
         <CardHeader>
           <CardTitle className="text-2xl">Notes</CardTitle>
           <CardDescription>
-            Review agent result notes, done summaries, and handoffs across active tasks.
+            Review unread done summaries. Mark reviewed cards disappear from this queue for{" "}
+            {getReviewReaderLabel(reviewReader)}.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <NoteList
             companyId={activeCompany.id}
-            initialNotes={notes.map((task) => ({
-              ...task,
+            reviewReader={reviewReader}
+            initialNotes={unreadNotes.map((task) => ({
+              id: task.id,
+              name: task.name,
+              status: task.status,
               note: task.note ?? "",
               summaryUpdatedAt: task.summaryUpdatedAt?.toISOString() ?? null,
+              assigned: task.assigned,
+              project: task.project,
             }))}
           />
         </CardContent>

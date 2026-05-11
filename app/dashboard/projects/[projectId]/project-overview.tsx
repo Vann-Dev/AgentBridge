@@ -48,6 +48,7 @@ const statuses = [
 ] as const
 
 const statusLabels = new Map(statuses.map((status) => [status.key, status.label]))
+const reviewReaderAgentId = "main"
 
 export function ProjectOverview({ project }: ProjectOverviewProps) {
   const tasks = project.tasks
@@ -126,7 +127,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
     })
   }, [tasks])
 
-  const recentDone = doneTasks.filter((task) => task.note).slice(0, 5)
+  const recentDone = doneTasks.filter(isUnreadDoneSummary).slice(0, 5)
   const upcomingTasks = todoTasks.slice(0, 5)
 
   return (
@@ -251,13 +252,13 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           <Card>
             <CardHeader>
               <CardTitle>Recently completed</CardTitle>
-              <CardDescription>Done cards with agent result notes for review.</CardDescription>
+              <CardDescription>Unread done summaries for the review reader.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {recentDone.length ? (
                 recentDone.map((task) => <TaskSummary key={task.id} task={task} />)
               ) : (
-                <EmptyMessage title="No result notes" text="Completed task result notes and handoffs will appear here." />
+                <EmptyMessage title="No unread summaries" text="New done summaries appear here until the review reader marks them reviewed." />
               )}
             </CardContent>
           </Card>
@@ -333,6 +334,17 @@ function StatusCount({ label, value }: { label: string; value: number }) {
       <p className="text-lg font-semibold">{value}</p>
     </div>
   )
+}
+
+function isUnreadDoneSummary(task: ProjectTask) {
+  if (!task.note) return false
+
+  const readMarker =
+    task.readMarkers.find(
+      (marker) => marker.status === Status.done && marker.agent.AgentId === reviewReaderAgentId
+    ) ?? task.readMarkers.find((marker) => marker.status === Status.done)
+
+  return !readMarker || !task.summaryUpdatedAt || new Date(readMarker.readAt) < new Date(task.summaryUpdatedAt)
 }
 
 function TaskSummary({ task }: { task: ProjectTask }) {
