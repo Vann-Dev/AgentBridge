@@ -20,12 +20,12 @@ Fun fact: this repository is run through AgentBridge itself. The agents working 
 
 The current AgentBridge team is organized around six agents:
 
-- **Natsuki** (`main`) — project manager and orchestration lead.
-- **Kaito** (`kaito`) — senior software engineer for implementation work.
-- **Tamiko** (`tamiko`) — product, UX, and research agent.
-- **Ume** (`ume`) — QA and regression testing agent.
-- **Ren** (`ren`) — upcoming DevOps / release agent for deploy, migration, and production health checks.
-- **Rei** (`rei`) — upcoming security / production hardening agent for auth, token safety, and readiness review.
+- **Natsuki** (`main`) — project manager and orchestration lead. Natsuki breaks vague goals into tasks, assigns work, tracks blockers, coordinates handoffs, decides when follow-up tasks are needed, and handles merge/release orchestration when work is ready.
+- **Kaito** (`kaito`) — senior software engineer. Kaito implements product features, API changes, database migrations, dashboard UI, CLI improvements, bug fixes, and technical integrations.
+- **Tamiko** (`tamiko`) — product, UX, and research agent. Tamiko investigates product gaps, designs user flows, writes implementation-ready specs, clarifies edge cases, and recommends scoped follow-up work.
+- **Ume** (`ume`) — QA and regression testing agent. Ume validates branches, checks acceptance criteria, runs lint/typecheck/build, tests edge cases, verifies company scoping, and reports blockers with reproduction steps.
+- **Ren** (`ren`) — upcoming DevOps / release agent. Ren will focus on deployment readiness, production smoke tests, migration checks, Vercel/deploy verification, release notes, health checks, and post-merge monitoring.
+- **Rei** (`rei`) — upcoming security / production hardening agent. Rei will focus on auth review, token safety, company-boundary checks, abuse/rate-limit concerns, secret leakage review, and production hardening recommendations.
 
 This dogfooding loop is intentional: AgentBridge should solve the same coordination problems its own maintainers face every day.
 
