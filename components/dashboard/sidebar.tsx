@@ -6,6 +6,7 @@ import {
   ClipboardListIcon,
   FileTextIcon,
   HomeIcon,
+  NewspaperIcon,
   NotebookTextIcon,
   ScrollTextIcon,
   SettingsIcon,
@@ -27,6 +28,7 @@ type DashboardSidebarProps = {
   activeCompany: Company | null
   activePath:
     | "overview"
+    | "brief"
     | "agents"
     | "projects"
     | "notes"
@@ -53,6 +55,12 @@ export function DashboardSidebar({
       href: dashboardHref(activeCompany?.id ?? null),
       key: "overview",
       icon: HomeIcon,
+    },
+    {
+      label: "Brief",
+      href: dashboardHref(activeCompany?.id ?? null, "/brief"),
+      key: "brief",
+      icon: NewspaperIcon,
     },
     {
       label: "Agents",
@@ -100,21 +108,28 @@ export function DashboardSidebar({
         href={dashboardHref(activeCompany?.id ?? null)}
         className="mb-6 rounded-3xl px-2 py-1 transition hover:bg-muted/70"
       >
-        <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
+        <p className="text-xs font-medium tracking-[0.24em] text-muted-foreground uppercase">
           AgentBridge
         </p>
         <h1 className="mt-1 text-xl font-semibold">Dashboard</h1>
       </Link>
 
       <div className="space-y-2">
-        <label className="flex items-center gap-2 px-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        <label className="flex items-center gap-2 px-2 text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
           <Building2Icon className="size-3.5" />
           Company
         </label>
-        <details className="group rounded-2xl border border-border bg-background p-2" open>
+        <details
+          className="group rounded-2xl border border-border bg-background p-2"
+          open
+        >
           <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl px-3 py-2 text-sm font-medium">
-            <span className="truncate">{activeCompany?.name ?? "No company"}</span>
-            <span className="text-muted-foreground transition group-open:rotate-180">⌄</span>
+            <span className="truncate">
+              {activeCompany?.name ?? "No company"}
+            </span>
+            <span className="text-muted-foreground transition group-open:rotate-180">
+              ⌄
+            </span>
           </summary>
           <div className="mt-2 space-y-1 border-t border-border pt-2">
             {companies.map((company) => (
@@ -135,13 +150,21 @@ export function DashboardSidebar({
       </div>
 
       <nav className="mt-6 space-y-6">
-        <SidebarNavGroup label="Workspace" activePath={activePath} items={primaryNav} />
-        <SidebarNavGroup label="Manage" activePath={activePath} items={secondaryNav} />
+        <SidebarNavGroup
+          label="Workspace"
+          activePath={activePath}
+          items={primaryNav}
+        />
+        <SidebarNavGroup
+          label="Manage"
+          activePath={activePath}
+          items={secondaryNav}
+        />
       </nav>
 
       <div className="mt-auto space-y-3 rounded-2xl border border-border bg-muted/70 p-3 text-sm">
         <div>
-          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="text-xs tracking-[0.16em] text-muted-foreground uppercase">
             Signed in as
           </p>
           <p className="mt-1 truncate font-medium">{username}</p>
@@ -176,7 +199,7 @@ function SidebarNavGroup({
 }) {
   return (
     <div className="space-y-2">
-      <p className="px-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+      <p className="px-2 text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
         {label}
       </p>
       <div className="space-y-1">

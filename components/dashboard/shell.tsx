@@ -8,6 +8,7 @@ type DashboardShellProps = {
   activeCompany: { id: string; name: string } | null
   activePath:
     | "overview"
+    | "brief"
     | "agents"
     | "projects"
     | "notes"
