@@ -6,9 +6,16 @@ import pg from "pg"
 import { PrismaClient } from "../apps/web/generated/prisma/client"
 
 const connectionString = process.env.DATABASE_URL
+const allowLocalSeed = process.env.AGENTBRIDGE_ALLOW_LOCAL_SEED === "true"
 
 if (!connectionString) {
   throw new Error("DATABASE_URL is not set")
+}
+
+if (!allowLocalSeed) {
+  throw new Error(
+    "Refusing to seed default admin credentials. Set AGENTBRIDGE_ALLOW_LOCAL_SEED=true only for local/dev databases, or use /setup for first-run owner creation.",
+  )
 }
 
 const pool = new pg.Pool({ connectionString, connectionTimeoutMillis: 5_000 })
@@ -25,6 +32,8 @@ try {
     update: { passwordHash },
     create: { username, passwordHash },
   })
+
+  console.log("Seeded local-only admin account. Do not use these credentials in production.")
 } finally {
   await prisma.$disconnect()
 }

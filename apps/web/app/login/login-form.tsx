@@ -15,14 +15,7 @@ export function LoginForm() {
     <form action={action} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="username">Username</Label>
-        <Input
-          id="username"
-          name="username"
-          type="text"
-          autoComplete="username"
-          defaultValue="admin"
-          required
-        />
+        <Input id="username" name="username" type="text" autoComplete="username" required />
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">Password</Label>
