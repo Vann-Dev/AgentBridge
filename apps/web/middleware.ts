@@ -22,12 +22,13 @@ async function hasValidSession(request: NextRequest) {
 export async function middleware(request: NextRequest) {
   const isAuthenticated = await hasValidSession(request)
   const isLoginPage = request.nextUrl.pathname === "/login"
+  const isSetupPage = request.nextUrl.pathname === "/setup"
 
-  if (!isAuthenticated && !isLoginPage) {
+  if (!isAuthenticated && !isLoginPage && !isSetupPage) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
-  if (isAuthenticated && isLoginPage) {
+  if (isAuthenticated && (isLoginPage || isSetupPage)) {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 

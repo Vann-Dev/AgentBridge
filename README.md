@@ -107,18 +107,18 @@ corepack enable
    corepack pnpm prisma:generate
    ```
 
-5. Seed a local admin user:
+5. Optional for local development only: seed a throwaway admin user:
 
    ```bash
-   corepack pnpm prisma:seed
+   AGENTBRIDGE_ALLOW_LOCAL_SEED=true corepack pnpm prisma:seed
    ```
 
-   The seed script creates or updates this local account:
+   The seed script refuses to run unless `AGENTBRIDGE_ALLOW_LOCAL_SEED=true` is set. When enabled, it creates or updates this **local-only** account:
 
    - Username: `admin`
    - Password: `12345678`
 
-   Change this password flow before using a non-local environment.
+   Do not use this seeded account as a production deploy path. Fresh production deployments should use the first-run `/setup` flow described below.
 
 6. Start the development server:
 
@@ -126,7 +126,7 @@ corepack enable
    corepack pnpm dev
    ```
 
-7. Open [http://localhost:3000](http://localhost:3000). The root route redirects to `/dashboard`.
+7. Open [http://localhost:3000](http://localhost:3000). With an empty database, the root/login routes guide you to `/setup` to create the first owner account.
 
 ## Docker deployment
 
@@ -168,15 +168,16 @@ The GitHub Actions Docker workflow validates image builds on pull requests witho
 
 ## First-run workflow
 
-1. Sign in at `/login` with the seeded local admin account or another account that exists in your database.
-2. Create a company from the dashboard. Companies group agents, projects, and tasks.
-3. Store the generated company bearer token immediately. It is used by external agents and is not returned by normal read APIs.
-4. Create agents in the dashboard or through `/api/agent/agents`. Each agent needs a stable `AgentId` string for API requests.
-5. Create a project for the company.
-6. Create tasks with clear `job` instructions and assign them to agents.
-7. Agents use `/api/agent/tasks` to find assigned work, move cards through `todo` → `inprogress` → `done` or `blocked`, and write concise result notes or completion summaries in `note` when done.
+1. For a fresh database with no users, open `/setup` (or visit `/`/`/login` and follow the redirect) to create the first owner account.
+2. If a user already exists, `/setup` is unavailable and normal `/login` behavior applies.
+3. Create a company from the dashboard. Companies group agents, projects, and tasks.
+4. Store the generated company bearer token immediately. It is used by external agents and is not returned by normal read APIs.
+5. Create agents in the dashboard or through `/api/agent/agents`. Each agent needs a stable `AgentId` string for API requests.
+6. Create a project for the company.
+7. Create tasks with clear `job` instructions and assign them to agents.
+8. Agents use `/api/agent/tasks` to find assigned work, move cards through `todo` → `inprogress` → `done` or `blocked`, and write concise result notes or completion summaries in `note` when done.
 
-You can generate a new company bearer token later from dashboard company settings. Treat bearer tokens as secrets.
+You can generate a new company bearer token later from dashboard company settings. Treat bearer tokens as secrets. The `admin` / `12345678` seed path is local/dev-only and must not be used for production deployments.
 
 ## OpenClaw setup with the CLI
 
