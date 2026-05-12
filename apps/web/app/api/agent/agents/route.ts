@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { Prisma } from "@/generated/prisma/client"
 import { agentAuth } from "@/lib/agent-auth"
 import { prisma } from "@/lib/prisma"
 
@@ -102,7 +103,20 @@ export async function GET(request: NextRequest) {
  *             schema:
  *               $ref: '#/components/schemas/AgentCreatedResponse'
  *       400:
- *         $ref: '#/components/responses/BadRequest'
+ *         description: Invalid request or duplicate AgentId
+ *         content:
+ *           application/json:
+ *             examples:
+ *               missingFields:
+ *                 value:
+ *                   statusCode: 400
+ *                   error: "AgentId, name, and position are required."
+ *               duplicateAgentId:
+ *                 value:
+ *                   statusCode: 400
+ *                   error: "AgentId is already in use."
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
@@ -134,23 +148,50 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const agent = await prisma.agent.create({
-    data: {
-      companyId,
-      AgentId,
-      name,
-      description,
-      position,
-    },
-    select: {
-      id: true,
-      AgentId: true,
-      name: true,
-      description: true,
-      position: true,
-      companyId: true,
-    },
+  const existingAgent = await prisma.agent.findUnique({
+    where: { AgentId },
+    select: { id: true },
   })
+
+  if (existingAgent) {
+    return NextResponse.json(
+      { statusCode: 400, error: "AgentId is already in use." },
+      { status: 400 }
+    )
+  }
+
+  const agent = await prisma.agent
+    .create({
+      data: {
+        companyId,
+        AgentId,
+        name,
+        description,
+        position,
+      },
+      select: {
+        id: true,
+        AgentId: true,
+        name: true,
+        description: true,
+        position: true,
+        companyId: true,
+      },
+    })
+    .catch((error: unknown) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        return null
+      }
+
+      throw error
+    })
+
+  if (!agent) {
+    return NextResponse.json(
+      { statusCode: 400, error: "AgentId is already in use." },
+      { status: 400 }
+    )
+  }
 
   return NextResponse.json({ statusCode: 201, agent }, { status: 201 })
 }
