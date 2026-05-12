@@ -1,4 +1,6 @@
-import type { ComponentType } from "react"
+"use client"
+
+import { useState, type ComponentType } from "react"
 import Link from "next/link"
 import {
   BotIcon,
@@ -60,6 +62,7 @@ export function DashboardSidebar({
   activePath,
   username,
 }: DashboardSidebarProps) {
+  const [isCreateCompanyOpen, setIsCreateCompanyOpen] = useState(false)
   const primaryNav = [
     {
       label: "Overview",
@@ -196,19 +199,22 @@ export function DashboardSidebar({
                 <span className="font-medium">Company settings</span>
               </Link>
             </DropdownMenuItem>
-            <CreateCompanyDialog
-              trigger={
-                <DropdownMenuItem
-                  onSelect={(event) => event.preventDefault()}
-                  className="gap-2 px-2.5 py-2.5"
-                >
-                  <PlusIcon className="size-4 text-muted-foreground" />
-                  <span className="font-medium">Create company</span>
-                </DropdownMenuItem>
-              }
-            />
+            <DropdownMenuItem
+              className="gap-2 px-2.5 py-2.5"
+              onSelect={(event) => {
+                event.preventDefault()
+                setIsCreateCompanyOpen(true)
+              }}
+            >
+              <PlusIcon className="size-4 text-muted-foreground" />
+              <span className="font-medium">Create company</span>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <CreateCompanyDialog
+          open={isCreateCompanyOpen}
+          onOpenChange={setIsCreateCompanyOpen}
+        />
       </div>
 
       <nav className="mt-6 space-y-6">

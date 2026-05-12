@@ -21,11 +21,15 @@ import { apiJson } from "@/lib/api/client"
 
 type CreateCompanyDialogProps = {
   defaultOpen?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   trigger?: ReactNode
 }
 
 export function CreateCompanyDialog({
   defaultOpen = false,
+  open,
+  onOpenChange,
   trigger,
 }: CreateCompanyDialogProps) {
   const router = useRouter()
@@ -39,6 +43,7 @@ export function CreateCompanyDialog({
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["companies"] })
       if (!data.token) {
+        onOpenChange?.(false)
         router.push(`/dashboard?company=${data.company.id}`)
         router.refresh()
       }
@@ -53,14 +58,16 @@ export function CreateCompanyDialog({
   }
 
   return (
-    <Dialog defaultOpen={defaultOpen}>
-      <DialogTrigger asChild>
-        {trigger ?? (
+    <Dialog defaultOpen={defaultOpen} open={open} onOpenChange={onOpenChange}>
+      {trigger ? (
+        <DialogTrigger asChild>{trigger}</DialogTrigger>
+      ) : open === undefined ? (
+        <DialogTrigger asChild>
           <Button className="w-full justify-start px-3" variant="ghost" type="button">
             Create company
           </Button>
-        )}
-      </DialogTrigger>
+        </DialogTrigger>
+      ) : null}
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="text-2xl">Create company</DialogTitle>
@@ -97,6 +104,7 @@ export function CreateCompanyDialog({
               type="button"
               variant="outline"
               onClick={() => {
+                onOpenChange?.(false)
                 router.push(`/dashboard?company=${mutation.data.company.id}`)
                 router.refresh()
               }}
