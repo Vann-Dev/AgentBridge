@@ -3,13 +3,18 @@
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
-type AppThemeProviderProps = React.ComponentProps<typeof NextThemesProvider> & {
-  children: React.ReactNode
-}
+type ThemeProviderProps = React.PropsWithChildren<{
+  attribute?: "class" | `data-${string}` | Array<"class" | `data-${string}`>
+  defaultTheme?: string
+  enableSystem?: boolean
+  disableTransitionOnChange?: boolean
+}>
 
-function ThemeProvider({ children, ...props }: AppThemeProviderProps) {
+const Provider = NextThemesProvider as React.ComponentType<ThemeProviderProps>
+
+function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   return (
-    <NextThemesProvider
+    <Provider
       attribute="class"
       defaultTheme="system"
       enableSystem
@@ -18,7 +23,7 @@ function ThemeProvider({ children, ...props }: AppThemeProviderProps) {
     >
       <ThemeHotkey />
       {children}
-    </NextThemesProvider>
+    </Provider>
   )
 }
 

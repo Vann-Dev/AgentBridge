@@ -40,6 +40,21 @@ model User {
   companies Company[]
 }
 
+model LoginThrottle {
+  id             String    @id @default(uuid()) @db.Uuid
+  username       String
+  ipAddress      String
+  failedAttempts Int       @default(0)
+  lastFailedAt   DateTime
+  lockedUntil    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([username, ipAddress])
+  @@index([ipAddress, lastFailedAt])
+  @@index([lockedUntil])
+}
+
 model Project {
   id          String  @id @default(uuid()) @db.Uuid
   name        String

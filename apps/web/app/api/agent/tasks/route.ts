@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
 import { agentAuth } from "@/lib/agent-auth"
+import { createAuditLog } from "@/lib/api/audit-log"
 import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
 import { agentTaskUpdater } from "@/lib/api/task-updater"
 import { prisma } from "@/lib/prisma"
@@ -272,6 +273,7 @@ export async function POST(request: NextRequest) {
     },
     select: {
       id: true,
+      companyId: true,
       company: {
         select: {
           agents: {
@@ -358,6 +360,14 @@ export async function POST(request: NextRequest) {
         },
       },
     })
+  })
+
+  await createAuditLog({
+    companyId: project.companyId,
+    action: "task.created",
+    target: { type: "task", id: task.id, name: task.name },
+    actor: { type: "agent", id: agent.id, name: agent.name },
+    details: `Created via Agent API as ${task.status} and assigned to ${task.assigned.name}.`,
   })
 
   return NextResponse.json(
