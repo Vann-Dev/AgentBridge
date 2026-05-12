@@ -128,6 +128,44 @@ corepack enable
 
 7. Open [http://localhost:3000](http://localhost:3000). The root route redirects to `/dashboard`.
 
+## Docker deployment
+
+AgentBridge ships a production Docker image for the Next.js app. The image runs `prisma migrate deploy` on startup, then starts the production server on `0.0.0.0:3000`.
+
+Required runtime environment:
+
+- `DATABASE_URL`: PostgreSQL connection string, including `?schema=public` when using the default Prisma schema.
+- `AUTH_SECRET`: long random secret used for session signing.
+- `NEXT_TELEMETRY_DISABLED`: set to `1` to keep Next telemetry disabled.
+- `PORT`: optional host port for Docker Compose; the container listens on port `3000`.
+
+Run with an external PostgreSQL database:
+
+```bash
+docker run --rm \
+  -p 3000:3000 \
+  -e DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/agentbridge?schema=public" \
+  -e AUTH_SECRET="replace-with-a-long-random-string" \
+  -e NEXT_TELEMETRY_DISABLED="1" \
+  ghcr.io/Vann-Dev/AgentBridge:latest
+```
+
+Build and run locally with Compose against an external database:
+
+```bash
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/agentbridge?schema=public" \
+AUTH_SECRET="replace-with-a-long-random-string" \
+docker compose up --build app
+```
+
+For local Docker-only testing, start the bundled PostgreSQL service through the `local-db` profile:
+
+```bash
+docker compose --profile local-db up --build
+```
+
+The GitHub Actions Docker workflow validates image builds on pull requests without pushing. Pushes to `main` publish `ghcr.io/Vann-Dev/AgentBridge:main` and `sha-<shortsha>`. Semver tags such as `v1.2.3` and published GitHub releases publish semver tags and `latest`.
+
 ## First-run workflow
 
 1. Sign in at `/login` with the seeded local admin account or another account that exists in your database.
