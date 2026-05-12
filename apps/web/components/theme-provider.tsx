@@ -1,24 +1,24 @@
 "use client"
 
 import * as React from "react"
-import {
-  ThemeProvider as NextThemesProvider,
-  type ThemeProviderProps,
-  useTheme,
-} from "next-themes"
+import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
+
+type ThemeProviderProps = React.ComponentProps<typeof NextThemesProvider> & {
+  children: React.ReactNode
+}
 
 function ThemeProvider({ children, ...props }: ThemeProviderProps) {
-  return (
-    <NextThemesProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-      {...props}
-    >
-      <ThemeHotkey />
-      {children}
-    </NextThemesProvider>
+  return React.createElement(
+    NextThemesProvider,
+    {
+      attribute: "class",
+      defaultTheme: "system",
+      enableSystem: true,
+      disableTransitionOnChange: true,
+      ...props,
+    },
+    <ThemeHotkey />,
+    children,
   )
 }
 
