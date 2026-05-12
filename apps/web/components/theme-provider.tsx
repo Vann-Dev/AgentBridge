@@ -8,17 +8,17 @@ type ThemeProviderProps = React.ComponentProps<typeof NextThemesProvider> & {
 }
 
 function ThemeProvider({ children, ...props }: ThemeProviderProps) {
-  return (
-    <NextThemesProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-      {...props}
-    >
-      <ThemeHotkey />
-      {children}
-    </NextThemesProvider>
+  return React.createElement(
+    NextThemesProvider,
+    {
+      attribute: "class",
+      defaultTheme: "system",
+      enableSystem: true,
+      disableTransitionOnChange: true,
+      ...props,
+    },
+    <ThemeHotkey />,
+    children,
   )
 }
 
