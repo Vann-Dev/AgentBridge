@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server"
 
+import { Status } from "@/generated/prisma/enums"
 import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
-import { projectAgentSelect, serializeProjectAgents } from "@/lib/api/project-agents"
-import { serializeTaskDependencies } from "@/lib/api/task-dependencies"
-import { badRequest, notFound, requireInternalSession } from "@/lib/api/internal"
+import {
+  projectAgentSelect,
+  serializeProjectAgents,
+} from "@/lib/api/project-agents"
+import {
+  badRequest,
+  notFound,
+  requireInternalSession,
+} from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
 type RouteContext = {
@@ -77,24 +84,20 @@ export async function GET(_request: Request, { params }: RouteContext) {
   })
   const taskIds = tasks.map((task) => task.id)
 
-  const [readMarkers, dependencyEdges] = taskIds.length
+  const [readCounts, doneReviewReads, dependencyEdges] = taskIds.length
     ? await Promise.all([
-        prisma.taskReadMarker.findMany({
+        prisma.taskReadMarker.groupBy({
+          by: ["taskId", "status"],
           where: { taskId: { in: taskIds } },
-          orderBy: { readAt: "desc" },
-          select: {
-            taskId: true,
-            agentId: true,
-            status: true,
-            readAt: true,
-            agent: {
-              select: {
-                id: true,
-                AgentId: true,
-                name: true,
-              },
-            },
+          _count: { _all: true },
+        }),
+        prisma.taskReadMarker.findMany({
+          where: {
+            taskId: { in: taskIds },
+            status: Status.done,
+            agent: { AgentId: "main" },
           },
+          select: { taskId: true, readAt: true },
         }),
         prisma.taskDependency.findMany({
           where: {
@@ -126,21 +129,45 @@ export async function GET(_request: Request, { params }: RouteContext) {
           },
         }),
       ])
-    : [[], []]
+    : [[], [], []]
 
-  const readMarkersByTask = new Map<string, typeof readMarkers>()
-  for (const readMarker of readMarkers) {
-    const taskReadMarkers = readMarkersByTask.get(readMarker.taskId) ?? []
-    taskReadMarkers.push(readMarker)
-    readMarkersByTask.set(readMarker.taskId, taskReadMarkers)
+  const readCountByTaskStatus = new Map<string, number>()
+  for (const readCount of readCounts) {
+    readCountByTaskStatus.set(
+      `${readCount.taskId}:${readCount.status}`,
+      readCount._count._all
+    )
   }
 
-  const dependenciesByTask = new Map<string, Array<{ dependencyTask: { id: string; name: string; status: typeof tasks[number]["status"] } }>>()
-  const unblocksByTask = new Map<string, Array<{ blockedTask: { id: string; name: string; status: typeof tasks[number]["status"] } }>>()
+  const doneReviewReadByTask = new Map(
+    doneReviewReads.map((read) => [read.taskId, read.readAt])
+  )
+
+  const dependenciesByTask = new Map<
+    string,
+    Array<{
+      dependencyTask: {
+        id: string
+        name: string
+        status: (typeof tasks)[number]["status"]
+      }
+    }>
+  >()
+  const unblocksByTask = new Map<
+    string,
+    Array<{
+      blockedTask: {
+        id: string
+        name: string
+        status: (typeof tasks)[number]["status"]
+      }
+    }>
+  >()
   for (const edge of dependencyEdges) {
     if (edge.blockedTask.archivedAt || edge.dependencyTask.archivedAt) continue
 
-    const blockedByDependencies = dependenciesByTask.get(edge.blockedTaskId) ?? []
+    const blockedByDependencies =
+      dependenciesByTask.get(edge.blockedTaskId) ?? []
     blockedByDependencies.push({ dependencyTask: edge.dependencyTask })
     dependenciesByTask.set(edge.blockedTaskId, blockedByDependencies)
 
@@ -155,17 +182,47 @@ export async function GET(_request: Request, { params }: RouteContext) {
       ...project,
       projectAgents: serializeProjectAgents(project.agents),
       agents: undefined,
-      tasks: tasks.map((task) =>
-        serializeTaskDependencies({
+      tasks: tasks.map((task) => {
+        const dependencies =
+          dependenciesByTask
+            .get(task.id)
+            ?.map((dependency) => dependency.dependencyTask) ?? []
+        const unblocks =
+          unblocksByTask
+            .get(task.id)
+            ?.map((dependency) => dependency.blockedTask) ?? []
+        const doneReviewReadAt = doneReviewReadByTask.get(task.id)
+
+        return {
           ...task,
-          readMarkers: readMarkersByTask.get(task.id) ?? [],
-          blockedByDependencies: dependenciesByTask.get(task.id) ?? [],
-          unblocksDependencies: unblocksByTask.get(task.id) ?? [],
-        })
-      ),
+          blockingReason: null,
+          readCount:
+            readCountByTaskStatus.get(`${task.id}:${task.status}`) ?? 0,
+          blockingReasonPreview: compactText(task.blockingReason),
+          dependencies: dependencies.slice(0, 3),
+          dependencyIds: dependencies.map((dependency) => dependency.id),
+          dependencyCount: dependencies.length,
+          unblocks: unblocks.slice(0, 3),
+          unblocksCount: unblocks.length,
+          isDependencyReady:
+            dependencies.length > 0 &&
+            dependencies.every(
+              (dependency) => dependency.status === Status.done
+            ),
+          isUnreadDoneSummary:
+            task.status === Status.done &&
+            Boolean(task.summaryUpdatedAt) &&
+            (!doneReviewReadAt ||
+              new Date(doneReviewReadAt) <
+                new Date(task.summaryUpdatedAt ?? 0)),
+        }
+      }),
     },
   })
-  jsonResponse.headers.set("Server-Timing", `project-detail;dur=${Date.now() - startedAt}`)
+  jsonResponse.headers.set(
+    "Server-Timing",
+    `project-detail;dur=${Date.now() - startedAt}`
+  )
 
   return jsonResponse
 }
@@ -175,7 +232,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
   if (response) return response
 
-  const body = (await request.json().catch(() => null)) as { name?: unknown } | null
+  const body = (await request.json().catch(() => null)) as {
+    name?: unknown
+  } | null
   const name = typeof body?.name === "string" ? body.name.trim() : ""
 
   if (!name) {
@@ -205,10 +264,20 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     action: "project.updated",
     target: { type: "project", id: project.id, name: updatedProject.name },
     actor: { type: "user", id: session.userId, name: session.username },
-    details: formatChangedFields([project.name !== updatedProject.name && "name"]),
+    details: formatChangedFields([
+      project.name !== updatedProject.name && "name",
+    ]),
   })
 
   return NextResponse.json({ statusCode: 200, project: updatedProject })
+}
+
+function compactText(text: string | null) {
+  if (!text) return null
+
+  const compact = text.replace(/\s+/g, " ").trim()
+
+  return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact
 }
 
 export async function DELETE(_request: Request, { params }: RouteContext) {
