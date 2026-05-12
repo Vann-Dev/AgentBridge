@@ -307,6 +307,14 @@ docker compose up --build
 
 The app runs on [http://localhost:3000](http://localhost:3000). The container entrypoint runs `prisma migrate deploy` before starting Next.js.
 
+Use the unauthenticated health/readiness endpoint for local smoke checks or container monitoring:
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+A healthy app returns HTTP `200` with `status: "healthy"` and `checks.database: "ok"`. If the app can respond but the database ping fails, the endpoint returns HTTP `503` with `status: "degraded"` and `checks.database: "unavailable"`. The response intentionally avoids secrets, environment values, user/company data, stack traces, and raw database errors.
+
 Set a real `AUTH_SECRET` for non-local use:
 
 ```bash
@@ -323,6 +331,7 @@ For production-like environments:
 4. Generate Prisma client code before building, or use the existing `build` script.
 5. Seed or create the first operator account through an approved operational process.
 6. Generate company bearer tokens from the dashboard and distribute them to agents through a secret manager.
+7. Monitor `GET /api/health` after deploys. Treat HTTP `200` as ready and HTTP `503` as the app running but not ready because database connectivity failed.
 
 Do not commit `.env`, real bearer tokens, database credentials, `.next`, `node_modules`, or generated local logs.
 
