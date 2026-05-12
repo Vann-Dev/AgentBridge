@@ -6,6 +6,15 @@
 - Reuse the existing code style, patterns, naming, layout, and project conventions.
 - Prefer matching nearby code over introducing a new approach.
 
+
+## AgentBridge Merge Workflow
+
+- Default to the PR-based workflow documented in `docs/agentbridge-merge-workflow.md`: AgentBridge task, focused branch, GitHub PR, Ume QA, then Natsuki/main merge.
+- Treat GitHub PRs as the source of truth for code review and merge readiness; AgentBridge remains the coordination tracker and audit trail.
+- Per Vann policy, Vercel red/failing deployment checks are not normal merge blockers while deployment is moving to Docker/GHCR; use PR cleanliness, non-Vercel GitHub Actions/Docker checks, local lint/typecheck/build, and AgentBridge QA PASS instead.
+- Use direct-to-main only as an explicit urgent hotfix exception after approval, exact-commit QA/checks, and task-note documentation. Never use it for monorepo/repo structure, migrations, auth/security, billing, dependency upgrades, large refactors, or infra/deploy architecture.
+- Record manual branch merges, closures, superseded PRs, ignored Vercel failures, and final commit SHAs in task notes and/or PR comments so future agents can audit the decision.
+
 ## Frontend
 
 - Always use shadcn/ui components for reusable UI elements when a shadcn component exists.
