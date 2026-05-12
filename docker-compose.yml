@@ -5,15 +5,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+        required: false
     environment:
       AUTH_SECRET: ${AUTH_SECRET:-replace-with-a-long-random-string-for-local-docker}
-      DATABASE_URL: postgresql://agentbridge:agentbridge@db:5432/agentbridge?schema=public
+      DATABASE_URL: ${DATABASE_URL:-postgresql://agentbridge:agentbridge@db:5432/agentbridge?schema=public}
       NEXT_TELEMETRY_DISABLED: "1"
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
 
   db:
     image: postgres:18-alpine
+    profiles: ["local-db"]
     restart: unless-stopped
     environment:
       POSTGRES_DB: agentbridge
