@@ -1,5 +1,11 @@
 packages:
   - cli
+allowBuilds:
+  "@prisma/engines": true
+  "@scarf/scarf": true
+  msw: true
+  prisma: true
+  sharp: true
 onlyBuiltDependencies:
   - "@prisma/engines"
   - "@scarf/scarf"
