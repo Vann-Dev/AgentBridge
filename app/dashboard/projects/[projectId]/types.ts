@@ -20,12 +20,17 @@ export type ProjectTask = {
   taskUpdatedById: string | null
   taskUpdatedByName: string | null
   taskUpdatedByType: string
-  readMarkers: TaskReadMarker[]
+  readCount: number
+  readMarkers?: TaskReadMarker[]
   blockingReason: string | null
+  blockingReasonPreview: string | null
   dependencies: TaskDependency[]
   dependencyIds: string[]
+  dependencyCount: number
   unblocks: TaskDependency[]
+  unblocksCount: number
   isDependencyReady: boolean
+  isUnreadDoneSummary: boolean
   assigned: {
     id: string
     name: string

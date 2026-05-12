@@ -1,7 +1,13 @@
 "use client"
 
 import { useMemo } from "react"
-import { AlertCircle, CheckCircle2, Circle, Clock3, UsersRound } from "lucide-react"
+import {
+  AlertCircle,
+  CheckCircle2,
+  Circle,
+  Clock3,
+  UsersRound,
+} from "lucide-react"
 
 import { Status } from "@/generated/prisma/enums"
 import { Badge } from "@/components/ui/badge"
@@ -47,8 +53,9 @@ const statuses = [
   },
 ] as const
 
-const statusLabels = new Map(statuses.map((status) => [status.key, status.label]))
-const reviewReaderAgentId = "main"
+const statusLabels = new Map(
+  statuses.map((status) => [status.key, status.label])
+)
 
 export function ProjectOverview({ project }: ProjectOverviewProps) {
   const tasks = project.tasks
@@ -61,12 +68,16 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
     return (
       task.status === Status.blocked ||
       task.isDependencyReady ||
-      /qa|fix|review|blocked|failure/i.test(`${task.name} ${task.blockingReason ?? ""}`)
+      /qa|fix|review|blocked|failure/i.test(
+        `${task.name} ${task.blockingReasonPreview ?? ""}`
+      )
     )
   })
   const activeTasks = tasks.filter((task) => task.status === Status.inprogress)
   const todoTasks = tasks.filter((task) => task.status === Status.todo)
-  const donePercent = totalTasks ? Math.round((doneTasks.length / totalTasks) * 100) : 0
+  const donePercent = totalTasks
+    ? Math.round((doneTasks.length / totalTasks) * 100)
+    : 0
   const statusCounts = new Map(statuses.map((status) => [status.key, 0]))
 
   for (const task of tasks) {
@@ -91,20 +102,18 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
     >()
 
     for (const task of tasks) {
-      const summary =
-        byAgent.get(task.assigned.id) ??
-        {
-          id: task.assigned.id,
-          name: task.assigned.name,
-          position: task.assigned.position,
-          total: 0,
-          inprogress: 0,
-          blocked: 0,
-          todo: 0,
-          done: 0,
-          current: [],
-          latestDone: null,
-        }
+      const summary = byAgent.get(task.assigned.id) ?? {
+        id: task.assigned.id,
+        name: task.assigned.name,
+        position: task.assigned.position,
+        total: 0,
+        inprogress: 0,
+        blocked: 0,
+        todo: 0,
+        done: 0,
+        current: [],
+        latestDone: null,
+      }
 
       summary.total += 1
       summary[task.status] += 1
@@ -113,7 +122,11 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
         summary.current.push(task)
       }
 
-      if (task.status === Status.done && task.summaryUpdatedAt && !summary.latestDone) {
+      if (
+        task.status === Status.done &&
+        task.summaryUpdatedAt &&
+        !summary.latestDone
+      ) {
         summary.latestDone = task
       }
 
@@ -121,22 +134,42 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
     }
 
     return Array.from(byAgent.values()).sort((left, right) => {
-      const priority = right.inprogress - left.inprogress || right.blocked - left.blocked
+      const priority =
+        right.inprogress - left.inprogress || right.blocked - left.blocked
 
       return priority || left.name.localeCompare(right.name)
     })
   }, [tasks])
 
-  const recentDone = doneTasks.filter(isUnreadDoneSummary).slice(0, 5)
+  const recentDone = doneTasks
+    .filter((task) => task.isUnreadDoneSummary)
+    .slice(0, 5)
   const upcomingTasks = todoTasks.slice(0, 5)
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Total tasks" value={totalTasks} helper="All project work" />
-        <MetricCard label="In progress" value={activeTasks.length} helper="Currently active" />
-        <MetricCard label="Blocked" value={blockedTasks.length} helper="Needs attention" danger={blockedTasks.length > 0} />
-        <MetricCard label="Complete" value={`${donePercent}%`} helper={`${doneTasks.length} done`} />
+        <MetricCard
+          label="Total tasks"
+          value={totalTasks}
+          helper="All project work"
+        />
+        <MetricCard
+          label="In progress"
+          value={activeTasks.length}
+          helper="Currently active"
+        />
+        <MetricCard
+          label="Blocked"
+          value={blockedTasks.length}
+          helper="Needs attention"
+          danger={blockedTasks.length > 0}
+        />
+        <MetricCard
+          label="Complete"
+          value={`${donePercent}%`}
+          helper={`${doneTasks.length} done`}
+        />
       </div>
 
       <Card>
@@ -159,7 +192,10 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
               const count = statusCounts.get(status.key) ?? 0
 
               return (
-                <div key={status.key} className="rounded-2xl border bg-background p-4">
+                <div
+                  key={status.key}
+                  className="rounded-2xl border bg-background p-4"
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Icon className="size-4 text-muted-foreground" />
@@ -191,16 +227,25 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           <CardContent className="space-y-4">
             {agentSummaries.length ? (
               agentSummaries.map((agent) => (
-                <div key={agent.id} className="rounded-2xl border bg-background p-4">
+                <div
+                  key={agent.id}
+                  className="rounded-2xl border bg-background p-4"
+                >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="font-medium">{agent.name}</p>
-                      <p className="text-sm text-muted-foreground">{agent.position}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {agent.position}
+                      </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="secondary">{agent.total} total</Badge>
                       <Badge variant="outline">{agent.inprogress} active</Badge>
-                      {agent.blocked ? <Badge variant="destructive">{agent.blocked} blocked</Badge> : null}
+                      {agent.blocked ? (
+                        <Badge variant="destructive">
+                          {agent.blocked} blocked
+                        </Badge>
+                      ) : null}
                     </div>
                   </div>
                   <div className="mt-4 grid gap-2 text-sm md:grid-cols-4">
@@ -217,19 +262,30 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                     </div>
                   ) : agent.latestDone ? (
                     <div className="mt-4 rounded-2xl bg-muted p-3 text-sm">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                      <p className="text-xs tracking-[0.16em] text-muted-foreground uppercase">
                         Latest result note
                       </p>
-                      <p className="mt-1 font-medium">{agent.latestDone.name}</p>
+                      <p className="mt-1 font-medium">
+                        {agent.latestDone.name}
+                      </p>
                       <p className="mt-1 text-muted-foreground">
-                        Summary updated {formatRelativeTime(new Date(agent.latestDone.summaryUpdatedAt ?? agent.latestDone.taskUpdatedAt))}
+                        Summary updated{" "}
+                        {formatRelativeTime(
+                          new Date(
+                            agent.latestDone.summaryUpdatedAt ??
+                              agent.latestDone.taskUpdatedAt
+                          )
+                        )}
                       </p>
                     </div>
                   ) : null}
                 </div>
               ))
             ) : (
-              <EmptyMessage title="No assigned work yet" text="Create tasks to see agent workload and active work here." />
+              <EmptyMessage
+                title="No assigned work yet"
+                text="Create tasks to see agent workload and active work here."
+              />
             )}
           </CardContent>
         </Card>
@@ -238,13 +294,20 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           <Card>
             <CardHeader>
               <CardTitle>Attention queue</CardTitle>
-              <CardDescription>Blocked, dependency-ready, QA, and fix-needed tasks.</CardDescription>
+              <CardDescription>
+                Blocked, dependency-ready, QA, and fix-needed tasks.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {attentionTasks.length ? (
-                attentionTasks.slice(0, 6).map((task) => <TaskSummary key={task.id} task={task} />)
+                attentionTasks
+                  .slice(0, 6)
+                  .map((task) => <TaskSummary key={task.id} task={task} />)
               ) : (
-                <EmptyMessage title="No attention items" text="No blockers, ready dependency work, or obvious QA/fix tasks." />
+                <EmptyMessage
+                  title="No attention items"
+                  text="No blockers, ready dependency work, or obvious QA/fix tasks."
+                />
               )}
             </CardContent>
           </Card>
@@ -252,13 +315,20 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           <Card>
             <CardHeader>
               <CardTitle>Recently completed</CardTitle>
-              <CardDescription>Unread done summaries for the review reader.</CardDescription>
+              <CardDescription>
+                Unread done summaries for the review reader.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {recentDone.length ? (
-                recentDone.map((task) => <TaskSummary key={task.id} task={task} />)
+                recentDone.map((task) => (
+                  <TaskSummary key={task.id} task={task} />
+                ))
               ) : (
-                <EmptyMessage title="No unread summaries" text="New done summaries appear here until the review reader marks them reviewed." />
+                <EmptyMessage
+                  title="No unread summaries"
+                  text="New done summaries appear here until the review reader marks them reviewed."
+                />
               )}
             </CardContent>
           </Card>
@@ -270,9 +340,14 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
             </CardHeader>
             <CardContent className="space-y-3">
               {upcomingTasks.length ? (
-                upcomingTasks.map((task) => <TaskSummary key={task.id} task={task} />)
+                upcomingTasks.map((task) => (
+                  <TaskSummary key={task.id} task={task} />
+                ))
               ) : (
-                <EmptyMessage title="No todo tasks" text="The backlog is empty for this project." />
+                <EmptyMessage
+                  title="No todo tasks"
+                  text="The backlog is empty for this project."
+                />
               )}
             </CardContent>
           </Card>
@@ -321,7 +396,14 @@ function MetricCard({
         <CardTitle className="text-3xl">{value}</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className={cn("text-sm text-muted-foreground", danger && "text-destructive")}>{helper}</p>
+        <p
+          className={cn(
+            "text-sm text-muted-foreground",
+            danger && "text-destructive"
+          )}
+        >
+          {helper}
+        </p>
       </CardContent>
     </Card>
   )
@@ -336,17 +418,6 @@ function StatusCount({ label, value }: { label: string; value: number }) {
   )
 }
 
-function isUnreadDoneSummary(task: ProjectTask) {
-  if (!task.summaryUpdatedAt) return false
-
-  const readMarker =
-    task.readMarkers.find(
-      (marker) => marker.status === Status.done && marker.agent.AgentId === reviewReaderAgentId
-    ) ?? task.readMarkers.find((marker) => marker.status === Status.done)
-
-  return !readMarker || new Date(readMarker.readAt) < new Date(task.summaryUpdatedAt)
-}
-
 function TaskSummary({ task }: { task: ProjectTask }) {
   return (
     <div className="rounded-2xl bg-muted p-3 text-sm">
@@ -358,18 +429,23 @@ function TaskSummary({ task }: { task: ProjectTask }) {
           </p>
           <TaskUpdateMeta task={task} />
         </div>
-        <Badge variant={task.status === Status.blocked ? "destructive" : "outline"}>
+        <Badge
+          variant={task.status === Status.blocked ? "destructive" : "outline"}
+        >
           {statusLabels.get(task.status)}
         </Badge>
       </div>
-      {task.dependencies.length ? (
+      {task.dependencyCount ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          Depends on {task.dependencies.length} task{task.dependencies.length === 1 ? "" : "s"}
+          Depends on {task.dependencyCount} task
+          {task.dependencyCount === 1 ? "" : "s"}
           {task.isDependencyReady ? " · ready" : ""}
         </p>
       ) : null}
-      {task.blockingReason ? (
-        <p className="mt-2 line-clamp-3 text-destructive">{task.blockingReason}</p>
+      {task.blockingReasonPreview ? (
+        <p className="mt-2 line-clamp-3 text-destructive">
+          {task.blockingReasonPreview}
+        </p>
       ) : task.summaryUpdatedAt ? (
         <p className="mt-2 text-xs text-muted-foreground">
           Summary updated {formatRelativeTime(new Date(task.summaryUpdatedAt))}
@@ -384,15 +460,21 @@ function TaskUpdateMeta({ task }: { task: ProjectTask }) {
 
   if (Number.isNaN(updatedAt.getTime())) return null
 
-  const actor = task.taskUpdatedByName?.trim() || fallbackUpdaterLabel(task.taskUpdatedByType)
+  const actor =
+    task.taskUpdatedByName?.trim() ||
+    fallbackUpdaterLabel(task.taskUpdatedByType)
   const exact = new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(updatedAt)
 
   return (
-    <p className="mt-0.5 text-xs text-muted-foreground" title={`Updated ${exact}${actor ? ` by ${actor}` : ""}`}>
-      Updated {formatRelativeTime(updatedAt)}{actor ? ` by ${actor}` : ""}
+    <p
+      className="mt-0.5 text-xs text-muted-foreground"
+      title={`Updated ${exact}${actor ? ` by ${actor}` : ""}`}
+    >
+      Updated {formatRelativeTime(updatedAt)}
+      {actor ? ` by ${actor}` : ""}
     </p>
   )
 }
