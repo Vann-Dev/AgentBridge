@@ -59,8 +59,6 @@ export async function GET(_request: Request, { params }: RouteContext) {
     select: {
       id: true,
       name: true,
-      job: true,
-      note: true,
       summaryUpdatedAt: true,
       taskUpdatedAt: true,
       taskUpdatedById: true,

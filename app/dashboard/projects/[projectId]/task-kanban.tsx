@@ -51,37 +51,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiJson } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
+import type { ProjectTask, ProjectTaskDetail } from "./types"
 
-type TaskReadMarker = {
-  agentId: string
-  status: Status
-  readAt: string | Date
-  agent: {
-    id: string
-    AgentId: string
-    name: string
-  }
-}
+type TaskCard = ProjectTask
+type TaskDetail = ProjectTaskDetail
 
-type TaskCard = {
-  id: string
-  name: string
-  job: string
-  status: Status
-  note: string | null
-  summaryUpdatedAt: string | Date | null
-  taskUpdatedAt: string | Date
-  taskUpdatedById: string | null
-  taskUpdatedByName: string | null
-  taskUpdatedByType: string
-  readMarkers: TaskReadMarker[]
-  blockingReason: string | null
-  assigned: {
-    id: string
-    name: string
-    position: string
-  }
-}
+type EditableTask = TaskDetail | (TaskCard & { job?: string; note?: string | null })
+
+type TaskDetailQueryData = { task: TaskDetail }
+
+type ProjectQueryData = { project: { tasks: TaskCard[] } }
+
 
 type AgentOption = {
   id: string
@@ -106,7 +86,7 @@ const columns = [
 
 export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanProps) {
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
-  const [editingTask, setEditingTask] = useState<TaskCard | null>(null)
+  const [editingTask, setEditingTask] = useState<EditableTask | null>(null)
   const [editingStatus, setEditingStatus] = useState<Status | null>(null)
   const [deletingTask, setDeletingTask] = useState<TaskCard | null>(null)
   const [confirmArchiveDone, setConfirmArchiveDone] = useState(false)
@@ -115,7 +95,7 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
     queryFn: () =>
-      apiJson<{ project: { tasks: TaskCard[] } }>(`/api/internal/projects/${projectId}`),
+      apiJson<ProjectQueryData>(`/api/internal/projects/${projectId}`),
     initialData: { project: { tasks } },
   })
   const statusMutation = useMutation({
@@ -126,13 +106,13 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
       }),
     onMutate: async ({ taskId, status }) => {
       await queryClient.cancelQueries({ queryKey: ["project", projectId] })
-      const previous = queryClient.getQueryData<{ project: { tasks: TaskCard[] } }>([
+      const previous = queryClient.getQueryData<ProjectQueryData>([
         "project",
         projectId,
       ])
       const now = new Date().toISOString()
 
-      queryClient.setQueryData<{ project: { tasks: TaskCard[] } }>(
+      queryClient.setQueryData<ProjectQueryData>(
         ["project", projectId],
         (current) =>
           current
@@ -230,15 +210,21 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
   })
   const currentTasks = projectQuery.data.project.tasks
   const doneTaskCount = currentTasks.filter((task) => task.status === Status.done).length
-  const editAgentOptions = editingTask
-    ? agents.some((agent) => agent.id === editingTask.assigned.id)
+  const editingTaskQuery = useQuery({
+    queryKey: ["task", editingTask?.id],
+    queryFn: () => apiJson<TaskDetailQueryData>(`/api/internal/tasks/${editingTask?.id}`),
+    enabled: Boolean(editingTask),
+  })
+  const editableTask = editingTaskQuery.data?.task ?? editingTask
+  const editAgentOptions = editableTask
+    ? agents.some((agent) => agent.id === editableTask.assigned.id)
       ? agents
       : [
           {
-            id: editingTask.assigned.id,
+            id: editableTask.assigned.id,
             AgentId: "unlinked",
-            name: editingTask.assigned.name,
-            position: `${editingTask.assigned.position} · not linked`,
+            name: editableTask.assigned.name,
+            position: `${editableTask.assigned.position} · not linked`,
           },
           ...agents,
         ]
@@ -371,7 +357,11 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
                                 Blocked: {task.blockingReason}
                               </p>
                             ) : null}
-                            {task.note ? <TaskTextPreview label="Done summary" text={task.note} lines={3} /> : null}
+                            {task.summaryUpdatedAt ? (
+                              <p className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
+                                Done summary available · updated {formatRelativeTime(new Date(task.summaryUpdatedAt))}
+                              </p>
+                            ) : null}
                           </CardHeader>
                           <CardContent>
                             <TaskDetails task={task} />
@@ -381,7 +371,7 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
                       <ContextMenuContent>
                         <ContextMenuItem
                           onSelect={() => {
-                            setEditingTask(task)
+                            setEditingTask(queryClient.getQueryData<TaskDetailQueryData>(["task", task.id])?.task ?? task)
                             setEditingStatus(task.status)
                           }}
                         >
@@ -421,96 +411,107 @@ export function TaskKanban({ agents, companyId, projectId, tasks }: TaskKanbanPr
             <DialogTitle className="text-2xl">Update task</DialogTitle>
             <DialogDescription>Edit task details and assignment.</DialogDescription>
           </DialogHeader>
-          {editingTask ? (
-            <form action={updateTask} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-task-name">Name</Label>
-                <Input id="edit-task-name" name="name" defaultValue={editingTask.name} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-task-job">Job</Label>
-                <Textarea id="edit-task-job" name="job" defaultValue={editingTask.job} rows={4} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Assigned agent</Label>
-                <p className="text-xs text-muted-foreground">Showing agents linked to this project.</p>
-                {!agents.some((agent) => agent.id === editingTask.assigned.id) ? (
-                  <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                    Current assignee is not linked to this project. You can save unchanged or pick a linked agent.
-                  </p>
-                ) : null}
-                <Select name="assignedAgentId" defaultValue={editingTask.assigned.id} required>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select agent" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {editAgentOptions.map((agent) => (
-                      <SelectItem key={agent.id} value={agent.id}>
-                        {agent.name} · {agent.position}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  name="status"
-                  value={editingStatus ?? editingTask.status}
-                  onValueChange={(value) => setEditingStatus(value as Status)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todo">Todo</SelectItem>
-                    <SelectItem value="inprogress">In progress</SelectItem>
-                    <SelectItem value="blocked">Blocked</SelectItem>
-                    <SelectItem value="done">Done</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-task-note">Done summary / note</Label>
-                <Textarea
-                  id="edit-task-note"
-                  name="note"
-                  defaultValue={editingTask.note ?? ""}
-                  placeholder="Summarize what changed when this task is done"
-                  rows={3}
-                />
-              </div>
-              {editingStatus === editingTask.status ? (
-                <ReadMarkerFields agents={agents} task={editingTask} />
-              ) : (
-                <div className="space-y-1 rounded-2xl border p-3 text-sm text-muted-foreground">
-                  <Label>Read markers for current status</Label>
-                  <p>
-                    Status changes start unread for the destination status and keep other status read
-                    markers intact. Save first, then reopen this task to edit read markers for the new
-                    status.
-                  </p>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="edit-task-blocking-reason">Blocking reason</Label>
-                <Textarea
-                  id="edit-task-blocking-reason"
-                  name="blockingReason"
-                  defaultValue={editingTask.blockingReason ?? ""}
-                  placeholder="Only needed if blocked"
-                  rows={3}
-                />
-              </div>
-              {updateMutation.error ? (
-                <p className="text-sm text-destructive">{updateMutation.error.message}</p>
-              ) : null}
-              <DialogFooter>
-                <Button disabled={updateMutation.isPending} type="submit">
-                  {updateMutation.isPending ? "Saving..." : "Save changes"}
+          {editableTask ? (
+            editingTaskQuery.isLoading && !("job" in editableTask) ? (
+              <TaskEditSkeleton />
+            ) : editingTaskQuery.isError ? (
+              <div className="space-y-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                <p>{editingTaskQuery.error.message}</p>
+                <Button type="button" variant="outline" size="sm" onClick={() => editingTaskQuery.refetch()}>
+                  Retry loading task
                 </Button>
-              </DialogFooter>
-            </form>
+              </div>
+            ) : (
+              <form action={updateTask} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-task-name">Name</Label>
+                  <Input id="edit-task-name" name="name" defaultValue={editableTask.name} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-task-job">Job</Label>
+                  <Textarea id="edit-task-job" name="job" defaultValue={"job" in editableTask ? editableTask.job : ""} rows={4} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Assigned agent</Label>
+                  <p className="text-xs text-muted-foreground">Showing agents linked to this project.</p>
+                  {!agents.some((agent) => agent.id === editableTask.assigned.id) ? (
+                    <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                      Current assignee is not linked to this project. You can save unchanged or pick a linked agent.
+                    </p>
+                  ) : null}
+                  <Select name="assignedAgentId" defaultValue={editableTask.assigned.id} required>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select agent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {editAgentOptions.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name} · {agent.position}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    name="status"
+                    value={editingStatus ?? editableTask.status}
+                    onValueChange={(value) => setEditingStatus(value as Status)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todo">Todo</SelectItem>
+                      <SelectItem value="inprogress">In progress</SelectItem>
+                      <SelectItem value="blocked">Blocked</SelectItem>
+                      <SelectItem value="done">Done</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-task-note">Done summary / note</Label>
+                  <Textarea
+                    id="edit-task-note"
+                    name="note"
+                    defaultValue={"note" in editableTask ? editableTask.note ?? "" : ""}
+                    placeholder="Summarize what changed when this task is done"
+                    rows={3}
+                  />
+                </div>
+                {editingStatus === editableTask.status ? (
+                  <ReadMarkerFields agents={agents} task={editableTask} />
+                ) : (
+                  <div className="space-y-1 rounded-2xl border p-3 text-sm text-muted-foreground">
+                    <Label>Read markers for current status</Label>
+                    <p>
+                      Status changes start unread for the destination status and keep other status read
+                      markers intact. Save first, then reopen this task to edit read markers for the new
+                      status.
+                    </p>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-task-blocking-reason">Blocking reason</Label>
+                  <Textarea
+                    id="edit-task-blocking-reason"
+                    name="blockingReason"
+                    defaultValue={editableTask.blockingReason ?? ""}
+                    placeholder="Only needed if blocked"
+                    rows={3}
+                  />
+                </div>
+                {updateMutation.error ? (
+                  <p className="text-sm text-destructive">{updateMutation.error.message}</p>
+                ) : null}
+                <DialogFooter>
+                  <Button disabled={updateMutation.isPending || editingTaskQuery.isFetching} type="submit">
+                    {updateMutation.isPending ? "Saving..." : "Save changes"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )
           ) : null}
         </DialogContent>
       </Dialog>
@@ -603,6 +604,12 @@ export function TaskKanbanSkeleton() {
 
 function TaskDetails({ task }: { task: TaskCard }) {
   const [expanded, setExpanded] = useState(false)
+  const detailQuery = useQuery({
+    queryKey: ["task", task.id],
+    queryFn: () => apiJson<TaskDetailQueryData>(`/api/internal/tasks/${task.id}`),
+    enabled: expanded,
+  })
+  const detail = detailQuery.data?.task
 
   return (
     <div className="space-y-3">
@@ -623,29 +630,51 @@ function TaskDetails({ task }: { task: TaskCard }) {
       </Button>
       {expanded ? (
         <div className="space-y-3">
-          <ExpandableText label="Job" text={task.job} />
-          {task.note ? <ExpandableText label="Done summary" text={task.note} /> : null}
-          {task.blockingReason ? (
-            <ExpandableText
-              className="border border-destructive/30 bg-destructive/10 text-destructive"
-              label="Blocking reason"
-              text={task.blockingReason}
-            />
+          {detailQuery.isLoading ? (
+            <TaskDetailSkeleton />
+          ) : detailQuery.isError ? (
+            <div className="space-y-2 rounded-2xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              <p>{detailQuery.error.message}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => detailQuery.refetch()}>
+                Retry
+              </Button>
+            </div>
+          ) : detail ? (
+            <>
+              <ExpandableText label="Job" text={detail.job} />
+              {detail.note ? <ExpandableText label="Done summary" text={detail.note} /> : null}
+              {detail.blockingReason ? (
+                <ExpandableText
+                  className="border border-destructive/30 bg-destructive/10 text-destructive"
+                  label="Blocking reason"
+                  text={detail.blockingReason}
+                />
+              ) : null}
+              <ReadMarkerDetails task={detail} />
+            </>
           ) : null}
-          <ReadMarkerDetails task={task} />
         </div>
       ) : null}
     </div>
   )
 }
 
-function TaskTextPreview({ label, text, lines = 2 }: { label: string; text: string; lines?: 2 | 3 }) {
+function TaskDetailSkeleton() {
   return (
-    <div className="rounded-2xl bg-muted p-3 text-sm">
-      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      <p className={cn("mt-1 whitespace-pre-wrap text-muted-foreground", lines === 3 ? "line-clamp-3" : "line-clamp-2")}>
-        {text}
-      </p>
+    <div className="space-y-3" aria-label="Loading task details">
+      <div className="h-16 animate-pulse rounded-2xl bg-muted" />
+      <div className="h-12 animate-pulse rounded-2xl bg-muted" />
+    </div>
+  )
+}
+
+function TaskEditSkeleton() {
+  return (
+    <div className="space-y-4" aria-label="Loading task editor">
+      <div className="h-10 animate-pulse rounded bg-muted" />
+      <div className="h-24 animate-pulse rounded bg-muted" />
+      <div className="h-10 animate-pulse rounded bg-muted" />
+      <div className="h-20 animate-pulse rounded bg-muted" />
     </div>
   )
 }

@@ -14,9 +14,7 @@ export type TaskReadMarker = {
 export type ProjectTask = {
   id: string
   name: string
-  job: string
   status: Status
-  note: string | null
   summaryUpdatedAt: string | Date | null
   taskUpdatedAt: string | Date
   taskUpdatedById: string | null
@@ -33,6 +31,11 @@ export type ProjectTask = {
     name: string
     position: string
   }
+}
+
+export type ProjectTaskDetail = ProjectTask & {
+  job: string
+  note: string | null
 }
 
 export type TaskDependency = {

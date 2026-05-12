@@ -113,7 +113,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
         summary.current.push(task)
       }
 
-      if (task.status === Status.done && task.note && !summary.latestDone) {
+      if (task.status === Status.done && task.summaryUpdatedAt && !summary.latestDone) {
         summary.latestDone = task
       }
 
@@ -221,8 +221,8 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                         Latest result note
                       </p>
                       <p className="mt-1 font-medium">{agent.latestDone.name}</p>
-                      <p className="mt-1 line-clamp-2 text-muted-foreground">
-                        {agent.latestDone.note}
+                      <p className="mt-1 text-muted-foreground">
+                        Summary updated {formatRelativeTime(new Date(agent.latestDone.summaryUpdatedAt ?? agent.latestDone.taskUpdatedAt))}
                       </p>
                     </div>
                   ) : null}
@@ -337,14 +337,14 @@ function StatusCount({ label, value }: { label: string; value: number }) {
 }
 
 function isUnreadDoneSummary(task: ProjectTask) {
-  if (!task.note) return false
+  if (!task.summaryUpdatedAt) return false
 
   const readMarker =
     task.readMarkers.find(
       (marker) => marker.status === Status.done && marker.agent.AgentId === reviewReaderAgentId
     ) ?? task.readMarkers.find((marker) => marker.status === Status.done)
 
-  return !readMarker || !task.summaryUpdatedAt || new Date(readMarker.readAt) < new Date(task.summaryUpdatedAt)
+  return !readMarker || new Date(readMarker.readAt) < new Date(task.summaryUpdatedAt)
 }
 
 function TaskSummary({ task }: { task: ProjectTask }) {
@@ -370,11 +370,11 @@ function TaskSummary({ task }: { task: ProjectTask }) {
       ) : null}
       {task.blockingReason ? (
         <p className="mt-2 line-clamp-3 text-destructive">{task.blockingReason}</p>
-      ) : task.note ? (
-        <p className="mt-2 line-clamp-3 text-muted-foreground">{task.note}</p>
-      ) : (
-        <p className="mt-2 line-clamp-2 text-muted-foreground">{task.job}</p>
-      )}
+      ) : task.summaryUpdatedAt ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Summary updated {formatRelativeTime(new Date(task.summaryUpdatedAt))}
+        </p>
+      ) : null}
     </div>
   )
 }
