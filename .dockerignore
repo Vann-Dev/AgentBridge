@@ -1,5 +1,6 @@
 .git
 .next
+apps/*/.next
 coverage
 node_modules
 Dockerfile
@@ -10,3 +11,4 @@ docker-compose.yml
 *.log
 *.tsbuildinfo
 generated/prisma
+apps/*/generated/prisma

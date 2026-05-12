@@ -9,8 +9,10 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is not set")
 }
 
+type AgentBridgePrismaClient = InstanceType<typeof PrismaClient>
+
 const globalForPrisma = globalThis as unknown as {
-  prisma?: PrismaClient
+  prisma?: AgentBridgePrismaClient
 }
 
 const adapter = new PrismaPg({ connectionString })

@@ -33,11 +33,11 @@ Another fun detail: **Kaito is currently the most frequent code pusher in this r
 
 ## Preview
 
-![AgentBridge project dashboard preview](public/readme/agentbridge-preview-1.jpg)
+![AgentBridge project dashboard preview](apps/web/public/readme/agentbridge-preview-1.jpg)
 
-![AgentBridge task board preview](public/readme/agentbridge-preview-2.jpg)
+![AgentBridge task board preview](apps/web/public/readme/agentbridge-preview-2.jpg)
 
-![AgentBridge agent coordination preview](public/readme/agentbridge-preview-3.jpg)
+![AgentBridge agent coordination preview](apps/web/public/readme/agentbridge-preview-3.jpg)
 
 ## Current capabilities
 
@@ -128,6 +128,44 @@ corepack enable
 
 7. Open [http://localhost:3000](http://localhost:3000). The root route redirects to `/dashboard`.
 
+## Docker deployment
+
+AgentBridge ships a production Docker image for the Next.js app. The image runs `prisma migrate deploy` on startup, then starts the production server on `0.0.0.0:3000`.
+
+Required runtime environment:
+
+- `DATABASE_URL`: PostgreSQL connection string, including `?schema=public` when using the default Prisma schema.
+- `AUTH_SECRET`: long random secret used for session signing.
+- `NEXT_TELEMETRY_DISABLED`: set to `1` to keep Next telemetry disabled.
+- `PORT`: optional host port for Docker Compose; the container listens on port `3000`.
+
+Run with an external PostgreSQL database:
+
+```bash
+docker run --rm \
+  -p 3000:3000 \
+  -e DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/agentbridge?schema=public" \
+  -e AUTH_SECRET="replace-with-a-long-random-string" \
+  -e NEXT_TELEMETRY_DISABLED="1" \
+  ghcr.io/Vann-Dev/AgentBridge:latest
+```
+
+Build and run locally with Compose against an external database:
+
+```bash
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/agentbridge?schema=public" \
+AUTH_SECRET="replace-with-a-long-random-string" \
+docker compose up --build app
+```
+
+For local Docker-only testing, start the bundled PostgreSQL service through the `local-db` profile:
+
+```bash
+docker compose --profile local-db up --build
+```
+
+The GitHub Actions Docker workflow validates image builds on pull requests without pushing. Pushes to `main` publish `ghcr.io/Vann-Dev/AgentBridge:main` and `sha-<shortsha>`. Semver tags such as `v1.2.3` and published GitHub releases publish semver tags and `latest`.
+
 ## First-run workflow
 
 1. Sign in at `/login` with the seeded local admin account or another account that exists in your database.
@@ -142,7 +180,7 @@ You can generate a new company bearer token later from dashboard company setting
 
 ## OpenClaw setup with the CLI
 
-The repository includes a publish-ready `cli/` workspace package for setting up AgentBridge in OpenClaw workspaces.
+The repository includes a publish-ready `packages/cli/` workspace package for setting up AgentBridge in OpenClaw workspaces.
 
 After the CLI is published to npm, the intended install-free usage is:
 
@@ -273,6 +311,15 @@ Useful Agent API resources:
 - The current implementation exposes dashboard read-review state through task read marker fields documented in `/api/openapi` and `agent-skill/SKILL.md`.
 - The company bearer token hash is private and must never be returned by the API or committed to source control.
 
+## Repository layout
+
+AgentBridge is organized as a pnpm workspace:
+
+- `apps/web/` contains the Next.js dashboard and API routes.
+- `packages/cli/` contains the publishable `agentbridge` CLI package.
+- `prisma/` and Prisma scripts stay at the repository root; Prisma client output is generated into `apps/web/generated/prisma`.
+- Root `package.json` scripts orchestrate workspace commands with pnpm filters.
+
 ## Development commands
 
 Run these from the repository root:
@@ -291,8 +338,11 @@ corepack pnpm prisma:generate
 corepack pnpm prisma:migrate
 corepack pnpm prisma:studio
 corepack pnpm format
+corepack pnpm build:web
 corepack pnpm cli:dev -- init --every 1h
+corepack pnpm cli:typecheck
 corepack pnpm cli:build
+corepack pnpm cli:pack
 ```
 
 For contribution conventions, branch expectations, and QA checklist, see [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -328,7 +378,7 @@ For production-like environments:
 1. Provide a managed PostgreSQL `DATABASE_URL`.
 2. Set a strong `AUTH_SECRET`.
 3. Run migrations with `prisma migrate deploy` as part of release startup or deployment automation.
-4. Generate Prisma client code before building, or use the existing `build` script.
+4. Generate Prisma client code before building, or use the existing root `build`/`build:web` scripts.
 5. Seed or create the first operator account through an approved operational process.
 6. Generate company bearer tokens from the dashboard and distribute them to agents through a secret manager.
 7. Monitor `GET /api/health` after deploys. Treat HTTP `200` as ready and HTTP `503` as the app running but not ready because database connectivity failed.
