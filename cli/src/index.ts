@@ -141,7 +141,9 @@ function normalize(value: string) {
 function redact(value: string) {
   return value
     .replace(/Bearer\s+[^\s]+/gi, "Bearer [redacted]")
-    .replace(/[A-Za-z0-9_-]{24,}/g, "[redacted]")
+    .replace(/[A-Za-z0-9_-]{24,}/g, (match) =>
+      /^[A-Z0-9_]+$/.test(match) ? match : "[redacted]"
+    )
 }
 
 function parseDurationMs(value: string) {
