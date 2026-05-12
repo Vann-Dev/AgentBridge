@@ -56,6 +56,12 @@ export type ProjectAgent = {
   position: string
 }
 
+export type RequestDiagnostics = {
+  label: string
+  clientDurationMs: number
+  serverTiming: string | null
+}
+
 export type ProjectDetailData = {
   id: string
   companyId: string
