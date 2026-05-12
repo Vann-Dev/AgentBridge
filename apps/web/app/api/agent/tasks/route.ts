@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const task = await prisma.$transaction(async (tx) => {
+  const task = await prisma.$transaction(async (tx: typeof prisma) => {
     await tx.projectAgent.createMany({
       data: [{ projectId: project.id, agentId: assignedAgentId }],
       skipDuplicates: true,

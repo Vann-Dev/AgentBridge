@@ -1,5 +1,6 @@
 packages:
-  - cli
+  - apps/*
+  - packages/*
 allowBuilds:
   "@prisma/engines": true
   "@scarf/scarf": true
