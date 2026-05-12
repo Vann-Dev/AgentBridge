@@ -13,6 +13,87 @@ type RouteContext = {
   params: Promise<{ taskId: string }>
 }
 
+export async function GET(_request: Request, { params }: RouteContext) {
+  const { session, response } = await requireInternalSession()
+
+  if (response) return response
+
+  const { taskId } = await params
+  const task = await prisma.task.findFirst({
+    where: {
+      id: taskId,
+      project: { company: { userId: session.userId } },
+      archivedAt: null,
+    },
+    select: {
+      id: true,
+      name: true,
+      job: true,
+      status: true,
+      note: true,
+      summaryUpdatedAt: true,
+      blockingReason: true,
+      archivedAt: true,
+      taskUpdatedAt: true,
+      taskUpdatedById: true,
+      taskUpdatedByName: true,
+      taskUpdatedByType: true,
+      assigned: {
+        select: {
+          id: true,
+          name: true,
+          position: true,
+        },
+      },
+      readMarkers: {
+        select: {
+          agentId: true,
+          status: true,
+          readAt: true,
+          agent: {
+            select: {
+              id: true,
+              AgentId: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { readAt: "desc" },
+      },
+      blockedByDependencies: {
+        select: {
+          dependencyTask: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      unblocksDependencies: {
+        select: {
+          blockedTask: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  })
+
+  if (!task) {
+    return notFound("Task not found.")
+  }
+
+  return NextResponse.json({ statusCode: 200, task: serializeTaskDependencies(task) })
+}
+
 export async function PATCH(request: Request, { params }: RouteContext) {
   const { session, response } = await requireInternalSession()
 
