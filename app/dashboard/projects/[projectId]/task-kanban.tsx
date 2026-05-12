@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown } from "lucide-react"
+import { Activity, ChevronDown } from "lucide-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Status } from "@/generated/prisma/enums"
@@ -46,7 +46,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiJson } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
-import type { ProjectTask, ProjectTaskDetail } from "./types"
+import type { ProjectTask, ProjectTaskDetail, RequestDiagnostics } from "./types"
 
 type TaskCard = ProjectTask
 type TaskDetail = ProjectTaskDetail
@@ -55,9 +55,15 @@ type EditableTask =
   | TaskDetail
   | (TaskCard & { job?: string; note?: string | null })
 
-type TaskDetailQueryData = { task: TaskDetail }
+type TaskDetailQueryData = {
+  task: TaskDetail
+  diagnostics?: RequestDiagnostics
+}
 
-type ProjectQueryData = { project: { tasks: TaskCard[] } }
+type ProjectQueryData = {
+  project: { tasks: TaskCard[] }
+  diagnostics?: RequestDiagnostics
+}
 
 type AgentOption = {
   id: string
@@ -71,6 +77,30 @@ type TaskKanbanProps = {
   companyId: string
   projectId: string
   tasks: TaskCard[]
+}
+
+async function timedApiJson<T>(
+  input: RequestInfo | URL,
+  label: string
+): Promise<T & { diagnostics?: RequestDiagnostics }> {
+  const startedAt = performance.now()
+  const response = await fetch(input, {
+    headers: { "Content-Type": "application/json" },
+  })
+  const data = (await response.json().catch(() => null)) as T & {
+    error?: string
+  }
+  const diagnostics: RequestDiagnostics = {
+    label,
+    clientDurationMs: Math.round(performance.now() - startedAt),
+    serverTiming: response.headers.get("Server-Timing"),
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.error ?? "Request failed")
+  }
+
+  return { ...data, diagnostics }
 }
 
 const columns = [
@@ -96,7 +126,10 @@ export function TaskKanban({
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
     queryFn: () =>
-      apiJson<ProjectQueryData>(`/api/internal/projects/${projectId}`),
+      timedApiJson<ProjectQueryData>(
+        `/api/internal/projects/${projectId}`,
+        "project board"
+      ),
     initialData: { project: { tasks } },
   })
   const statusMutation = useMutation({
@@ -219,13 +252,17 @@ export function TaskKanban({
     },
   })
   const currentTasks = projectQuery.data.project.tasks
+  const projectDiagnostics = projectQuery.data.diagnostics
   const doneTaskCount = currentTasks.filter(
     (task) => task.status === Status.done
   ).length
   const editingTaskQuery = useQuery({
     queryKey: ["task", editingTask?.id],
     queryFn: () =>
-      apiJson<TaskDetailQueryData>(`/api/internal/tasks/${editingTask?.id}`),
+      timedApiJson<TaskDetailQueryData>(
+        `/api/internal/tasks/${editingTask?.id}`,
+        "task detail"
+      ),
     enabled: Boolean(editingTask),
   })
   const editableTask = editingTaskQuery.data?.task ?? editingTask
@@ -307,6 +344,9 @@ export function TaskKanban({
             Dismiss
           </Button>
         </div>
+      ) : null}
+      {projectDiagnostics ? (
+        <LatencyDiagnostics diagnostics={projectDiagnostics} />
       ) : null}
       {statusMutation.error ? (
         <p className="text-sm text-destructive">
@@ -700,12 +740,45 @@ export function TaskKanbanSkeleton() {
   )
 }
 
+function LatencyDiagnostics({
+  compact = false,
+  diagnostics,
+}: {
+  compact?: boolean
+  diagnostics: RequestDiagnostics
+}) {
+  return (
+    <div
+      className={cn(
+        "flex gap-2 rounded-2xl border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground",
+        compact ? "items-start" : "items-center"
+      )}
+    >
+      <Activity className="mt-0.5 size-4 shrink-0" />
+      <p>
+        {diagnostics.label} fetch: {diagnostics.clientDurationMs}ms client
+        {diagnostics.serverTiming ? (
+          <>
+            {" "}· Server-Timing: {" "}
+            <code className="rounded bg-background px-1 py-0.5 break-all">
+              {diagnostics.serverTiming}
+            </code>
+          </>
+        ) : null}
+      </p>
+    </div>
+  )
+}
+
 function TaskDetails({ task }: { task: TaskCard }) {
   const [expanded, setExpanded] = useState(false)
   const detailQuery = useQuery({
     queryKey: ["task", task.id],
     queryFn: () =>
-      apiJson<TaskDetailQueryData>(`/api/internal/tasks/${task.id}`),
+      timedApiJson<TaskDetailQueryData>(
+        `/api/internal/tasks/${task.id}`,
+        "task detail"
+      ),
     enabled: expanded,
   })
   const detail = detailQuery.data?.task
@@ -747,6 +820,9 @@ function TaskDetails({ task }: { task: TaskCard }) {
             </div>
           ) : detail ? (
             <>
+              {detailQuery.data?.diagnostics ? (
+                <LatencyDiagnostics diagnostics={detailQuery.data.diagnostics} compact />
+              ) : null}
               <ExpandableText label="Job" text={detail.job} />
               {detail.note ? (
                 <ExpandableText label="Done summary" text={detail.note} />

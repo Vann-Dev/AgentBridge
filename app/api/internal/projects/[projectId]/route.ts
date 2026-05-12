@@ -11,6 +11,11 @@ import {
   notFound,
   requireInternalSession,
 } from "@/lib/api/internal"
+import {
+  appendServerTiming,
+  formatServerTimingMetric,
+  startServerTiming,
+} from "@/lib/api/server-timing"
 import { prisma } from "@/lib/prisma"
 
 type RouteContext = {
@@ -18,12 +23,13 @@ type RouteContext = {
 }
 
 export async function GET(_request: Request, { params }: RouteContext) {
+  const totalTiming = startServerTiming("ab-project-detail", "total")
   const { session, response: authResponse } = await requireInternalSession()
 
   if (authResponse) return authResponse
 
-  const startedAt = Date.now()
   const { projectId } = await params
+  const projectQueryTiming = startServerTiming("ab-project-shell", "project shell")
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
@@ -56,10 +62,13 @@ export async function GET(_request: Request, { params }: RouteContext) {
     },
   })
 
+  const projectTiming = formatServerTimingMetric(projectQueryTiming)
+
   if (!project) {
     return notFound("Project not found.")
   }
 
+  const tasksTiming = startServerTiming("ab-project-tasks", "task cards")
   const tasks = await prisma.task.findMany({
     where: { projectId: project.id, archivedAt: null },
     orderBy: { name: "asc" },
@@ -83,7 +92,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
     },
   })
   const taskIds = tasks.map((task) => task.id)
+  const tasksHeaderTiming = formatServerTimingMetric(tasksTiming)
 
+  const metadataTiming = startServerTiming("ab-project-task-meta", "read/dependency meta")
   const [readCounts, doneReviewReads, dependencyEdges] = taskIds.length
     ? await Promise.all([
         prisma.taskReadMarker.groupBy({
@@ -130,6 +141,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
         }),
       ])
     : [[], [], []]
+  const metadataHeaderTiming = formatServerTimingMetric(metadataTiming)
 
   const readCountByTaskStatus = new Map<string, number>()
   for (const readCount of readCounts) {
@@ -219,10 +231,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
       }),
     },
   })
-  jsonResponse.headers.set(
-    "Server-Timing",
-    `project-detail;dur=${Date.now() - startedAt}`
-  )
+  appendServerTiming(jsonResponse.headers, [
+    projectTiming,
+    tasksHeaderTiming,
+    metadataHeaderTiming,
+    totalTiming,
+  ])
 
   return jsonResponse
 }
