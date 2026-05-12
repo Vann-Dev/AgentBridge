@@ -11,27 +11,57 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { apiJson } from "@/lib/api/client"
-
 import { CreateTaskDialog } from "./create-task-dialog"
 import { ProjectAgentsManager } from "./project-agents-manager"
 import { ProjectOverview, ProjectOverviewSkeleton } from "./project-overview"
 import { TaskKanban, TaskKanbanSkeleton } from "./task-kanban"
-import type { ProjectDetailData } from "./types"
+import type { ProjectDetailData, RequestDiagnostics } from "./types"
 
 type ProjectDetailClientProps = {
   initialProject: ProjectDetailData
   projectId: string
 }
 
+type TimedApiJsonResult<T> = T & {
+  diagnostics?: RequestDiagnostics
+}
+
+async function timedApiJson<T>(
+  input: RequestInfo | URL,
+  label: string
+): Promise<TimedApiJsonResult<T>> {
+  const startedAt = performance.now()
+  const response = await fetch(input, {
+    headers: { "Content-Type": "application/json" },
+  })
+  const data = (await response.json().catch(() => null)) as T & {
+    error?: string
+  }
+  const diagnostics: RequestDiagnostics = {
+    label,
+    clientDurationMs: Math.round(performance.now() - startedAt),
+    serverTiming: response.headers.get("Server-Timing"),
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.error ?? "Request failed")
+  }
+
+  return { ...data, diagnostics }
+}
+
 export function ProjectDetailClient({ initialProject, projectId }: ProjectDetailClientProps) {
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
     queryFn: () =>
-      apiJson<{ project: ProjectDetailData }>(`/api/internal/projects/${projectId}`),
+      timedApiJson<{ project: ProjectDetailData }>(
+        `/api/internal/projects/${projectId}`,
+        "project board"
+      ),
     initialData: { project: initialProject },
   })
   const project = projectQuery.data.project
+  const projectDiagnostics = projectQuery.data.diagnostics
   const agents = project.projectAgents
   const companyAgents = project.company.agents
   const isLoadingProjectData = projectQuery.isFetching && project.tasks.length === 0
@@ -91,7 +121,7 @@ export function ProjectDetailClient({ initialProject, projectId }: ProjectDetail
         {isLoadingProjectData ? (
           <ProjectOverviewSkeleton />
         ) : (
-          <ProjectOverview project={project} />
+          <ProjectOverview project={project} diagnostics={projectDiagnostics} />
         )}
       </section>
 

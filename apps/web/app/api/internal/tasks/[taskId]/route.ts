@@ -4,6 +4,10 @@ import { Status } from "@/generated/prisma/enums"
 import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
 import { hasDependencyCycle, serializeTaskDependencies } from "@/lib/api/task-dependencies"
 import { badRequest, notFound, requireInternalSession } from "@/lib/api/internal"
+import {
+  appendServerTiming,
+  startServerTiming,
+} from "@/lib/api/server-timing"
 import { userTaskUpdater } from "@/lib/api/task-updater"
 import { prisma } from "@/lib/prisma"
 
@@ -14,6 +18,7 @@ type RouteContext = {
 }
 
 export async function GET(_request: Request, { params }: RouteContext) {
+  const totalTiming = startServerTiming("ab-task-detail", "total")
   const { session, response } = await requireInternalSession()
 
   if (response) return response
@@ -91,7 +96,13 @@ export async function GET(_request: Request, { params }: RouteContext) {
     return notFound("Task not found.")
   }
 
-  return NextResponse.json({ statusCode: 200, task: serializeTaskDependencies(task) })
+  const jsonResponse = NextResponse.json({
+    statusCode: 200,
+    task: serializeTaskDependencies(task),
+  })
+  appendServerTiming(jsonResponse.headers, [totalTiming])
+
+  return jsonResponse
 }
 
 export async function PATCH(request: Request, { params }: RouteContext) {

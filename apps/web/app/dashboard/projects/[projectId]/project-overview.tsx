@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import {
+  Activity,
   AlertCircle,
   CheckCircle2,
   Circle,
@@ -20,10 +21,11 @@ import {
 } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
-import type { ProjectDetailData, ProjectTask } from "./types"
+import type { ProjectDetailData, ProjectTask, RequestDiagnostics } from "./types"
 
 type ProjectOverviewProps = {
   project: ProjectDetailData
+  diagnostics?: RequestDiagnostics
 }
 
 const statuses = [
@@ -57,7 +59,7 @@ const statusLabels = new Map(
   statuses.map((status) => [status.key, status.label])
 )
 
-export function ProjectOverview({ project }: ProjectOverviewProps) {
+export function ProjectOverview({ diagnostics, project }: ProjectOverviewProps) {
   const tasks = project.tasks
   const totalTasks = tasks.length
   const doneTasks = tasks.filter((task) => task.status === Status.done)
@@ -148,6 +150,8 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
 
   return (
     <div className="space-y-6">
+      {diagnostics ? <LatencyDiagnostics diagnostics={diagnostics} /> : null}
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Total tasks"
@@ -375,6 +379,29 @@ export function ProjectOverviewSkeleton() {
         </div>
       </div>
     </div>
+  )
+}
+
+function LatencyDiagnostics({
+  diagnostics,
+}: {
+  diagnostics: RequestDiagnostics
+}) {
+  return (
+    <Card className="border-dashed bg-muted/30">
+      <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+        <Activity className="mt-1 size-5 text-muted-foreground" />
+        <div className="space-y-1">
+          <CardTitle className="text-base">Project fetch diagnostics</CardTitle>
+          <CardDescription>
+            Client fetch took {diagnostics.clientDurationMs}ms. Server-Timing: {" "}
+            <code className="rounded bg-background px-1 py-0.5 text-xs break-all">
+              {diagnostics.serverTiming ?? "not reported"}
+            </code>
+          </CardDescription>
+        </div>
+      </CardHeader>
+    </Card>
   )
 }
 

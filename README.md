@@ -147,7 +147,8 @@ The repository includes a publish-ready `packages/cli/` workspace package for se
 After the CLI is published to npm, the intended install-free usage is:
 
 ```bash
-npx agentbridge openclaw init
+npx agentbridge init --every 1h
+npx agentbridge agent setup --agent kaito
 npx agentbridge openclaw doctor --workspace ~/.openclaw
 npx agentbridge openclaw check --workspace ~/.openclaw --agent kaito
 npx agentbridge openclaw status --workspace ~/.openclaw
@@ -156,20 +157,27 @@ npx agentbridge openclaw status --workspace ~/.openclaw
 For local development from this repository, use Corepack:
 
 ```bash
-corepack pnpm --filter agentbridge dev -- openclaw init
+corepack pnpm --filter agentbridge dev -- init --every 1h
+corepack pnpm --filter agentbridge dev -- agent setup --agent kaito
 corepack pnpm --filter agentbridge dev -- openclaw doctor --workspace ~/.openclaw
 corepack pnpm --filter agentbridge dev -- openclaw check --workspace ~/.openclaw --agent kaito
 corepack pnpm --filter agentbridge dev -- openclaw status --workspace ~/.openclaw
 ```
 
-`openclaw init` detects local OpenClaw agent candidates first, fetches company agents from `/api/agent/agents`, matches by `AgentId` or normalized name, and asks for confirmation before writing files. Manual AgentId entry is fallback only.
+`agentbridge init` is the project/owner setup flow. It detects local OpenClaw agent candidates, fetches company agents from `/api/agent/agents`, confirms which AgentIds should run recurring checks, writes local config/secrets, installs the agent-ops skill, and creates or updates an idempotent OpenClaw cron job per selected agent. The default schedule is hourly (`--every 1h`); override it with `--every 15m`, `--every 1d`, or `--cron "0 9 * * *" --tz Asia/Jakarta`.
 
-The current installed workflow is heartbeat-based, not cron-based. The CLI writes/copies:
+`agentbridge openclaw init` remains a compatibility alias for project setup. It no longer edits `HEARTBEAT.md` for recurring checks. If OpenClaw cron control is unavailable, init fails clearly and does not silently fall back to heartbeat edits.
+
+`agentbridge agent setup` is the separate new-agent/linking flow. It confirms or links an existing AgentBridge AgentId and installs local config/skill files, but it does not create or overwrite the project owner cron job unless you run `agentbridge init`.
+
+The project init flow writes/copies:
 
 - `skills/agent-ops/SKILL.md`
-- `.openclaw/agentbridge/config.json` for non-secret config
+- `.openclaw/agentbridge/config.json` for non-secret config, project metadata, and cron job ids when available
 - `.openclaw/agentbridge/.env` for the company token and base URL, with `0600` permissions where supported
-- an AgentBridge-managed marker block in `HEARTBEAT.md`
+- OpenClaw cron jobs named `AgentBridge <AgentId> project worker`
+
+The generated cron prompt includes project context, repository, AgentBridge API rules, progress/blocker handling, task creation rules, SaaS audit coordination guidance, and a `NO_REPLY` instruction for unchanged/no-action runs. It never embeds the company token; cron workers load credentials from environment or `.openclaw/agentbridge/.env`.
 
 The CLI redacts tokens from errors and does not print the company bearer token in normal output.
 
@@ -293,7 +301,7 @@ corepack pnpm prisma:migrate
 corepack pnpm prisma:studio
 corepack pnpm format
 corepack pnpm build:web
-corepack pnpm cli:dev -- openclaw init
+corepack pnpm cli:dev -- init --every 1h
 corepack pnpm cli:typecheck
 corepack pnpm cli:build
 corepack pnpm cli:pack
@@ -311,6 +319,14 @@ docker compose up --build
 
 The app runs on [http://localhost:3000](http://localhost:3000). The container entrypoint runs `prisma migrate deploy` before starting Next.js.
 
+Use the unauthenticated health/readiness endpoint for local smoke checks or container monitoring:
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+A healthy app returns HTTP `200` with `status: "healthy"` and `checks.database: "ok"`. If the app can respond but the database ping fails, the endpoint returns HTTP `503` with `status: "degraded"` and `checks.database: "unavailable"`. The response intentionally avoids secrets, environment values, user/company data, stack traces, and raw database errors.
+
 Set a real `AUTH_SECRET` for non-local use:
 
 ```bash
@@ -327,6 +343,7 @@ For production-like environments:
 4. Generate Prisma client code before building, or use the existing root `build`/`build:web` scripts.
 5. Seed or create the first operator account through an approved operational process.
 6. Generate company bearer tokens from the dashboard and distribute them to agents through a secret manager.
+7. Monitor `GET /api/health` after deploys. Treat HTTP `200` as ready and HTTP `503` as the app running but not ready because database connectivity failed.
 
 Do not commit `.env`, real bearer tokens, database credentials, `.next`, `node_modules`, or generated local logs.
 

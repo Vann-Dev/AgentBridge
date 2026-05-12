@@ -2,6 +2,8 @@
 
 import { createInterface } from "node:readline/promises"
 import { stdin as input, stdout as output } from "node:process"
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
 import { constants, existsSync } from "node:fs"
 import {
   access,
@@ -38,7 +40,22 @@ type Config = {
   installedAt: string
   installVersion: string
   skillPath: string
-  heartbeatFile: string
+  heartbeatFile?: string
+  cronJobs?: ConfigCronJob[]
+  project?: ConfigProject
+}
+
+type ConfigCronJob = {
+  agentId: string
+  name: string
+  schedule: string
+  jobId?: string
+}
+
+type ConfigProject = {
+  id?: string
+  name: string
+  repository?: string
 }
 
 type Candidate = {
@@ -61,19 +78,21 @@ type RequestOptions = {
 }
 
 const VERSION = "0.1.0"
-const markerStart = "<!-- BEGIN AgentBridge heartbeat -->"
-const markerEnd = "<!-- END AgentBridge heartbeat -->"
+const execFileAsync = promisify(execFile)
 
 function usage() {
   console.log(`AgentBridge CLI v${VERSION}
 
 Usage:
-  agentbridge openclaw init [--workspace <path>] [--base-url <url>] [--agent <AgentId>] [--all-detected] [--dry-run] [--yes]
+  agentbridge init [--workspace <path>] [--base-url <url>] [--project-id <id>] [--project-name <name>] [--repo <url>] [--agent <AgentId>] [--every <duration>|--cron <expr>] [--tz <iana>] [--dry-run] [--yes]
+  agentbridge agent setup [--workspace <path>] [--base-url <url>] [--agent <AgentId>] [--all-detected] [--dry-run] [--yes]
+  agentbridge openclaw init [same as agentbridge init]
   agentbridge openclaw doctor [--workspace <path>] [--base-url <url>] [--token <token>] [--agent <AgentId>]
   agentbridge openclaw check [--workspace <path>] [--base-url <url>] [--token <token>] [--agent <AgentId>]
   agentbridge openclaw status [--workspace <path>]
 
-Default setup uses OpenClaw heartbeat instructions, not cron. Tokens are redacted from logs.
+Project init creates or updates an OpenClaw cron job for recurring AgentBridge checks.
+Agent setup only links/configures agents and skills. Tokens are redacted from logs.
 When --workspace is provided it is used exactly; global ~/.openclaw/agents are only considered with --all-detected.`)
 }
 
@@ -123,6 +142,44 @@ function redact(value: string) {
   return value
     .replace(/Bearer\s+[^\s]+/gi, "Bearer [redacted]")
     .replace(/[A-Za-z0-9_-]{24,}/g, "[redacted]")
+}
+
+function parseDurationMs(value: string) {
+  const match = value.trim().match(/^(\d+)\s*(s|m|h|d)$/i)
+  if (!match) return null
+
+  const amount = Number.parseInt(match[1], 10)
+  const unit = match[2].toLowerCase()
+  const multipliers = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }
+  return amount * multipliers[unit as keyof typeof multipliers]
+}
+
+function normalizeSchedule(flags: Map<string, string | boolean>) {
+  const cron = flagString(flags, "cron")
+  if (cron) {
+    return {
+      kind: "cron" as const,
+      label: cron,
+      args: [
+        "--cron",
+        cron,
+        ...(flagString(flags, "tz")
+          ? ["--tz", flagString(flags, "tz") as string]
+          : []),
+      ],
+    }
+  }
+
+  const every = flagString(flags, "every") ?? "1h"
+  if (!parseDurationMs(every)) {
+    throw new Error("Invalid --every value. Use durations like 15m, 1h, or 1d.")
+  }
+
+  return {
+    kind: "every" as const,
+    label: every,
+    args: ["--every", every],
+  }
 }
 
 async function pathExists(target: string) {
@@ -177,7 +234,10 @@ async function looksLikeOpenClawWorkspace(directory: string) {
   return false
 }
 
-async function detectLocalAgents(workspace: string, options?: { includeGlobalAgents?: boolean }) {
+async function detectLocalAgents(
+  workspace: string,
+  options?: { includeGlobalAgents?: boolean }
+) {
   const candidates = new Map<string, Candidate>()
   const add = (agentId: string, name: string, source: string) => {
     const clean = agentId.trim().toLowerCase()
@@ -287,7 +347,9 @@ async function fetchAgentsWithFallback(
         authenticatedAgentId: agentId,
       }
     } catch (error) {
-      failures.push(`${agentId}: ${error instanceof Error ? error.message : String(error)}`)
+      failures.push(
+        `${agentId}: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
 
@@ -435,13 +497,13 @@ function repoRoot() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..")
 }
 
-async function installOpenClaw(options: {
+async function installOpenClawBase(options: {
   workspace: string
   baseUrl: string
   token: string
   agents: AgentBridgeAgent[]
-  dryRun: boolean
-  yes: boolean
+  project?: ConfigProject
+  cronJobs?: ConfigCronJob[]
 }) {
   const agentbridgeDir = path.join(
     options.workspace,
@@ -453,7 +515,7 @@ async function installOpenClaw(options: {
   const skillTarget = path.join(skillDir, "SKILL.md")
   const envTarget = path.join(agentbridgeDir, ".env")
   const configTarget = path.join(agentbridgeDir, "config.json")
-  const heartbeatTarget = path.join(options.workspace, "HEARTBEAT.md")
+  const previousConfig = await readConfig(options.workspace)
   const config: Config = {
     baseUrl: options.baseUrl,
     agents: options.agents.map((agent) => ({
@@ -462,31 +524,11 @@ async function installOpenClaw(options: {
       position: agent.position,
       source: "AgentBridge",
     })),
-    installedAt: new Date().toISOString(),
+    installedAt: previousConfig?.installedAt ?? new Date().toISOString(),
     installVersion: VERSION,
     skillPath: path.relative(options.workspace, skillTarget),
-    heartbeatFile: path.relative(options.workspace, heartbeatTarget),
-  }
-
-  console.log("Planned changes:")
-  console.log(
-    `  write ${path.relative(options.workspace, configTarget)} (no secrets)`
-  )
-  console.log(
-    `  write ${path.relative(options.workspace, envTarget)} (token secret, chmod 0600 where supported)`
-  )
-  console.log(`  copy  ${path.relative(options.workspace, skillTarget)}`)
-  console.log(
-    `  update ${path.relative(options.workspace, heartbeatTarget)} marker block`
-  )
-
-  if (options.dryRun) return
-  if (!options.yes) {
-    const confirmed = await prompt("Apply these changes? Type yes to continue")
-    if (confirmed.toLowerCase() !== "yes") {
-      console.log("Canceled without writing files.")
-      return
-    }
+    project: options.project ?? previousConfig?.project,
+    cronJobs: options.cronJobs ?? previousConfig?.cronJobs,
   }
 
   await mkdir(agentbridgeDir, { recursive: true })
@@ -499,54 +541,263 @@ async function installOpenClaw(options: {
   )
   await chmod(envTarget, 0o600).catch(() => undefined)
   await copyFile(skillSource, skillTarget)
-  await upsertHeartbeat(heartbeatTarget, options.agents)
-
-  console.log("AgentBridge OpenClaw heartbeat setup complete.")
 }
 
-async function upsertHeartbeat(filePath: string, agents: AgentBridgeAgent[]) {
-  const existing = (await pathExists(filePath))
-    ? await readFile(filePath, "utf8")
-    : "# HEARTBEAT\n"
-  const agentList = agents
-    .map((agent) => `- ${agent.AgentId} (${agent.name})`)
-    .join("\n")
-  const block = `${markerStart}
-
-## AgentBridge heartbeat task check
-
-On each OpenClaw heartbeat, load \`.openclaw/agentbridge/.env\`, then use the stable \`AgentId\` header for the current agent to call AgentBridge. Do not use cron as the default workflow.
-
-Configured agents:
-${agentList}
-
-Heartbeat behavior:
-1. Check assigned tasks through \`GET /api/agent/tasks\`.
-2. Prioritize blocked tasks that can be unblocked, then inprogress, then todo.
-3. Mark a task \`inprogress\` only when actually starting implementation.
-4. Mark completed work \`done\` with a concise note/summary, or \`blocked\` with a clear blocking reason.
-5. Notify humans only for new actionable work, auth/doctor failures, or completion/blocked transitions; do not spam unchanged empty queues.
-6. If read markers are used, mark only the current agent/status as read after processing the displayed task state.
-
-Useful manual checks:
-- \`corepack pnpm --filter agentbridge start -- openclaw doctor --workspace <workspace>\`
-- \`corepack pnpm --filter agentbridge start -- openclaw check --workspace <workspace>\`
-
-${markerEnd}
-`
-
-  const pattern = new RegExp(
-    `${escapeRegExp(markerStart)}[\\s\\S]*?${escapeRegExp(markerEnd)}\\n?`,
-    "m"
+async function installAgentSetup(options: {
+  workspace: string
+  baseUrl: string
+  token: string
+  agents: AgentBridgeAgent[]
+  dryRun: boolean
+  yes: boolean
+}) {
+  const agentbridgeDir = path.join(
+    options.workspace,
+    ".openclaw",
+    "agentbridge"
   )
-  const next = pattern.test(existing)
-    ? existing.replace(pattern, block)
-    : `${existing.trimEnd()}\n\n${block}`
-  await writeFile(filePath, next, "utf8")
+  const skillTarget = path.join(
+    options.workspace,
+    "skills",
+    "agent-ops",
+    "SKILL.md"
+  )
+  const envTarget = path.join(agentbridgeDir, ".env")
+  const configTarget = path.join(agentbridgeDir, "config.json")
+
+  console.log("Planned agent setup changes:")
+  console.log(
+    `  write ${path.relative(options.workspace, configTarget)} (no secrets)`
+  )
+  console.log(
+    `  write ${path.relative(options.workspace, envTarget)} (token secret, chmod 0600 where supported)`
+  )
+  console.log(`  copy  ${path.relative(options.workspace, skillTarget)}`)
+  console.log(
+    "  cron  no changes (agent setup does not create project cron jobs)"
+  )
+
+  if (options.dryRun) return
+  if (!(await confirmChanges(options.yes))) return
+
+  await installOpenClawBase(options)
+  console.log("AgentBridge OpenClaw agent setup complete.")
 }
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+async function confirmChanges(yes: boolean) {
+  if (yes) return true
+
+  const confirmed = await prompt("Apply these changes? Type yes to continue")
+  if (confirmed.toLowerCase() !== "yes") {
+    console.log("Canceled without writing files.")
+    return false
+  }
+
+  return true
+}
+
+async function installProjectInit(options: {
+  workspace: string
+  baseUrl: string
+  token: string
+  agents: AgentBridgeAgent[]
+  project: ConfigProject
+  schedule: ReturnType<typeof normalizeSchedule>
+  dryRun: boolean
+  yes: boolean
+}) {
+  const agentbridgeDir = path.join(
+    options.workspace,
+    ".openclaw",
+    "agentbridge"
+  )
+  const skillTarget = path.join(
+    options.workspace,
+    "skills",
+    "agent-ops",
+    "SKILL.md"
+  )
+  const envTarget = path.join(agentbridgeDir, ".env")
+  const configTarget = path.join(agentbridgeDir, "config.json")
+  console.log("Planned project init changes:")
+  console.log(
+    `  write ${path.relative(options.workspace, configTarget)} (no secrets)`
+  )
+  console.log(
+    `  write ${path.relative(options.workspace, envTarget)} (token secret, chmod 0600 where supported)`
+  )
+  console.log(`  copy  ${path.relative(options.workspace, skillTarget)}`)
+  console.log(
+    `  cron  create/update ${options.agents.length} AgentBridge OpenClaw job(s) (${options.schedule.label})`
+  )
+  console.log("  skip  HEARTBEAT.md (cron is the recurring workflow)")
+
+  if (options.dryRun) return
+  if (!(await confirmChanges(options.yes))) return
+
+  const installedCronJobs = await upsertOpenClawCronJobs({
+    workspace: options.workspace,
+    baseUrl: options.baseUrl,
+    agents: options.agents,
+    project: options.project,
+    schedule: options.schedule,
+  })
+
+  await installOpenClawBase({
+    ...options,
+    cronJobs: installedCronJobs,
+  })
+  console.log("AgentBridge OpenClaw cron setup complete.")
+}
+
+function cronJobName(agentId: string) {
+  return `AgentBridge ${agentId} project worker`
+}
+
+async function upsertOpenClawCronJobs(options: {
+  workspace: string
+  baseUrl: string
+  agents: AgentBridgeAgent[]
+  project: ConfigProject
+  schedule: ReturnType<typeof normalizeSchedule>
+}) {
+  const openclaw = await findOpenClawBinary()
+  const jobs = await listOpenClawCronJobs(openclaw)
+  const installed: ConfigCronJob[] = []
+
+  for (const agent of options.agents) {
+    const name = cronJobName(agent.AgentId)
+    const existing = jobs.find((job) => job.name === name)
+    const message = buildCronPrompt({
+      workspace: options.workspace,
+      baseUrl: options.baseUrl,
+      agent,
+      project: options.project,
+    })
+    const args = existing
+      ? [
+          "cron",
+          "edit",
+          existing.id,
+          "--name",
+          name,
+          "--agent",
+          agent.AgentId,
+          "--message",
+          message,
+          "--session",
+          "isolated",
+          "--timeout-seconds",
+          "1800",
+          "--enable",
+          ...options.schedule.args,
+        ]
+      : [
+          "cron",
+          "add",
+          "--name",
+          name,
+          "--agent",
+          agent.AgentId,
+          "--message",
+          message,
+          "--session",
+          "isolated",
+          "--timeout-seconds",
+          "1800",
+          ...options.schedule.args,
+        ]
+
+    const { stdout } = await execFileAsync(openclaw, args, {
+      cwd: options.workspace,
+      maxBuffer: 1024 * 1024,
+    })
+    const jobId = existing?.id ?? extractCronJobId(stdout)
+    installed.push({
+      agentId: agent.AgentId,
+      name,
+      schedule: options.schedule.label,
+      jobId,
+    })
+    console.log(
+      `${existing ? "Updated" : "Created"} OpenClaw cron job: ${name}${jobId ? ` (${jobId})` : ""}`
+    )
+  }
+
+  return installed
+}
+
+async function findOpenClawBinary() {
+  const configured = process.env.OPENCLAW_BIN
+  if (configured) return configured
+
+  try {
+    await execFileAsync("openclaw", ["--version"])
+    return "openclaw"
+  } catch {
+    throw new Error(
+      "OpenClaw cron CLI is unavailable. Install OpenClaw or set OPENCLAW_BIN, then rerun init; no HEARTBEAT.md fallback was written."
+    )
+  }
+}
+
+type CronListJob = { id: string; name?: string }
+
+async function listOpenClawCronJobs(openclaw: string) {
+  const { stdout } = await execFileAsync(
+    openclaw,
+    ["cron", "list", "--all", "--json"],
+    {
+      maxBuffer: 1024 * 1024,
+    }
+  )
+  const data = JSON.parse(stdout) as { jobs?: CronListJob[] }
+  return data.jobs ?? []
+}
+
+function extractCronJobId(output: string) {
+  const match = output.match(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+  )
+  return match?.[0]
+}
+
+function buildCronPrompt(options: {
+  workspace: string
+  baseUrl: string
+  agent: AgentBridgeAgent
+  project: ConfigProject
+}) {
+  const projectLine = options.project.id
+    ? `- Project ID: ${options.project.id}`
+    : "- Project ID: use the configured/default AgentBridge project when needed"
+  const repoLine = options.project.repository
+    ? `- Repository: ${options.project.repository}`
+    : "- Repository: inspect the workspace configuration or task notes when needed"
+
+  return `You are ${options.agent.name}, ${options.agent.position} for the AgentBridge project.
+
+This is your recurring AgentBridge project work loop. Check assigned work and make progress only when there is something actionable.
+
+AgentBridge context:
+- Base URL: ${options.baseUrl}
+- Project name: ${options.project.name}
+${projectLine}
+${repoLine}
+- OpenClaw workspace: ${options.workspace}
+- Your AgentId: ${options.agent.AgentId}
+
+Required behavior:
+1. Load .openclaw/agentbridge/.env for AGENTBRIDGE_BASE_URL and AGENTBRIDGE_COMPANY_TOKEN if runtime env is missing. Never print, paste, commit, or store the token outside that local env file.
+2. Use the agent-ops skill and AgentBridge /api/agent API with Authorization: Bearer <company-token> and AgentId: ${options.agent.AgentId}.
+3. List assigned tasks with GET /api/agent/tasks and work only on tasks assigned to ${options.agent.AgentId}.
+4. Prioritize blocked tasks you can unblock, then inprogress, then todo. Stay quiet if there is no actionable change.
+5. For implementation work, clone/pull the repository if needed, read AGENTS.md before editing, follow existing style/architecture, and avoid unrelated rewrites.
+6. Mark a task inprogress only when actually starting work. Mark finished work done with a concise note/summary that includes changed files, branch/commit/PR when relevant, and check results. Mark blocked with a clear blockingReason.
+7. Create follow-up tasks in the same AgentBridge project only when low-risk and clearly implied; otherwise ask Natsuki/main or Vann.
+8. Run relevant checks when practical: pnpm lint, pnpm typecheck, pnpm build, CLI build/pack for CLI changes, and report exact failures.
+9. If SaaS production-readiness/audit work is requested or evidence suggests a broad production concern, trigger/coordinate with the SaaS audit task owner before broad changes.
+10. Notify humans only on meaningful changes, blockers, failures, or completed work. If nothing changed and no action is needed, reply exactly: NO_REPLY`
 }
 
 async function readConfig(workspace: string): Promise<Config | null> {
@@ -606,7 +857,7 @@ async function resolveConnection(
   return { baseUrl, token, agentId, config }
 }
 
-async function runInit(flags: Map<string, string | boolean>) {
+async function resolveInitInputs(flags: Map<string, string | boolean>) {
   const workspace = await detectWorkspace(flagString(flags, "workspace"))
   console.log(`OpenClaw workspace: ${workspace}`)
 
@@ -641,14 +892,44 @@ async function runInit(flags: Map<string, string | boolean>) {
   )
   console.log(`Authenticated to AgentBridge as ${authenticatedAgentId}.`)
   const matches = matchAgents(candidates, agents)
-  const selectedAgents = await selectAgents(
-    matches,
-    agents,
-    flagString(flags, "agent")
-  )
+  const selectedAgents = await selectAgents(matches, agents, explicitAgentId)
   if (selectedAgents.length === 0) throw new Error("No agents selected.")
 
-  await installOpenClaw({
+  return { workspace, baseUrl, token, selectedAgents }
+}
+
+async function runInit(flags: Map<string, string | boolean>) {
+  const { workspace, baseUrl, token, selectedAgents } =
+    await resolveInitInputs(flags)
+  const project: ConfigProject = {
+    id: flagString(flags, "project-id"),
+    name:
+      flagString(flags, "project-name") ??
+      (await prompt("AgentBridge project name", "AgentBridge")),
+    repository:
+      flagString(flags, "repo") ??
+      (await prompt(
+        "Project repository URL",
+        "https://github.com/Vann-Dev/AgentBridge"
+      )),
+  }
+
+  await installProjectInit({
+    workspace,
+    baseUrl,
+    token,
+    agents: selectedAgents,
+    project,
+    schedule: normalizeSchedule(flags),
+    dryRun: flags.has("dry-run"),
+    yes: flags.has("yes"),
+  })
+}
+
+async function runAgentSetup(flags: Map<string, string | boolean>) {
+  const { workspace, baseUrl, token, selectedAgents } =
+    await resolveInitInputs(flags)
+  await installAgentSetup({
     workspace,
     baseUrl,
     token,
@@ -738,7 +1019,12 @@ async function runStatus(flags: Map<string, string | boolean>) {
     `Agents: ${config.agents.map((agent) => `${agent.AgentId} (${agent.name})`).join(", ")}`
   )
   console.log(`Skill: ${config.skillPath}`)
-  console.log(`Heartbeat: ${config.heartbeatFile}`)
+  console.log(`Project: ${config.project?.name ?? "not configured"}`)
+  console.log(
+    `Cron jobs: ${config.cronJobs?.map((job) => `${job.agentId}${job.jobId ? ` (${job.jobId})` : ""}`).join(", ") || "not configured"}`
+  )
+  if (config.heartbeatFile)
+    console.log(`Legacy heartbeat: ${config.heartbeatFile}`)
   console.log(
     `Secret env: ${envStat ? `present mode ${(envStat.mode & 0o777).toString(8)}` : "missing"}`
   )
@@ -753,18 +1039,28 @@ async function main() {
     return
   }
 
-  const [scope, command] = positional
-  if (scope !== "openclaw") {
-    usage()
-    process.exitCode = 1
-    return
-  }
-
-  if (command === "init") await runInit(flags)
-  else if (command === "doctor") await runDoctor(flags)
-  else if (command === "check" || command === "tasks") await runCheck(flags)
-  else if (command === "status") await runStatus(flags)
-  else {
+  const [scope, command, subcommand] = positional
+  if (scope === "init") await runInit(flags)
+  else if (
+    scope === "agent" &&
+    ["setup", "add", "link"].includes(command ?? "")
+  ) {
+    await runAgentSetup(flags)
+  } else if (scope === "openclaw") {
+    if (command === "init") await runInit(flags)
+    else if (
+      command === "agent" &&
+      ["setup", "add", "link"].includes(subcommand ?? "")
+    ) {
+      await runAgentSetup(flags)
+    } else if (command === "doctor") await runDoctor(flags)
+    else if (command === "check" || command === "tasks") await runCheck(flags)
+    else if (command === "status") await runStatus(flags)
+    else {
+      usage()
+      process.exitCode = 1
+    }
+  } else {
     usage()
     process.exitCode = 1
   }
