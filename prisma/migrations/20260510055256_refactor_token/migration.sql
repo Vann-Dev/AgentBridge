@@ -1,22 +1,36 @@
 /*
-  Warnings:
+  Historical compatibility note:
 
-  - You are about to drop the column `bearerTokenHash` on the `Agent` table. All the data in the column will be lost.
-  - A unique constraint covering the columns `[AgentId]` on the table `Agent` will be added. If there are existing duplicate values, this will fail.
-  - A unique constraint covering the columns `[bearerTokenHash]` on the table `Company` will be added. If there are existing duplicate values, this will fail.
-  - Added the required column `AgentId` to the `Agent` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `bearerTokenHash` to the `Company` table without a default value. This is not possible if the table is not empty.
-
+  This migration originally added required Agent.AgentId and
+  Company.bearerTokenHash columns without defaults, which fails when replayed
+  against non-empty pre-refactor databases. The deterministic backfill below
+  preserves migration replay safety without exposing real bearer tokens.
+  Operators should rotate the generated company token after upgrading any
+  legacy database that crossed this migration boundary.
 */
 -- DropIndex
 DROP INDEX "Agent_bearerTokenHash_key";
 
 -- AlterTable
 ALTER TABLE "Agent" DROP COLUMN "bearerTokenHash",
-ADD COLUMN     "AgentId" TEXT NOT NULL;
+ADD COLUMN     "AgentId" TEXT;
+
+-- Backfill stable AgentId values for legacy rows before enforcing NOT NULL.
+UPDATE "Agent"
+SET "AgentId" = 'legacy-' || "id"::text
+WHERE "AgentId" IS NULL;
+
+ALTER TABLE "Agent" ALTER COLUMN "AgentId" SET NOT NULL;
 
 -- AlterTable
-ALTER TABLE "Company" ADD COLUMN     "bearerTokenHash" TEXT NOT NULL;
+ALTER TABLE "Company" ADD COLUMN     "bearerTokenHash" TEXT;
+
+-- Backfill deterministic unique placeholders for legacy company rows.
+UPDATE "Company"
+SET "bearerTokenHash" = 'legacy-company-token-' || "id"::text
+WHERE "bearerTokenHash" IS NULL;
+
+ALTER TABLE "Company" ALTER COLUMN "bearerTokenHash" SET NOT NULL;
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Agent_AgentId_key" ON "Agent"("AgentId");

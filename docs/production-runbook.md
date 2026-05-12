@@ -92,6 +92,17 @@ Because the current image entrypoint always runs `prisma migrate deploy`, every 
 
 For multi-replica production deployments, avoid migration races by ensuring only one instance starts with the migration-capable entrypoint at a time, or by using platform controls/entrypoint overrides to run a dedicated migration job before scaling the web app. If your platform cannot separate migrations from app startup, document that limitation in the release notes and roll out one replica at a time.
 
+### Legacy pre-token database upgrades
+
+The migration chain has a compatibility path for older non-empty AgentBridge databases that existed before company-scoped bearer tokens and stable `AgentId` values were introduced. Historical token migrations backfill deterministic placeholder values so `prisma migrate deploy` can complete instead of failing on required non-null columns.
+
+After upgrading a legacy pre-token database:
+
+1. Sign in to the dashboard.
+2. Review agents and rename any generated `legacy-<uuid>` AgentIds to the intended stable API identifiers before configuring external agents.
+3. Rotate the company bearer token in Settings and update external agent configs with the newly shown token. The migration placeholders are not usable plaintext bearer tokens.
+4. Run the Agent API smoke check with the intended `AgentId` and new company token.
+
 ## App start
 
 For Docker Compose with an external database:
