@@ -43,6 +43,7 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
       status: true,
       note: true,
       summaryUpdatedAt: true,
+      taskUpdatedAt: true,
       assigned: {
         select: {
           id: true,
@@ -69,7 +70,9 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
   const unreadNotes = notes.filter((task) => {
     const readAt = task.readMarkers[0]?.readAt
 
-    return !readAt || !task.summaryUpdatedAt || readAt < task.summaryUpdatedAt
+    const summaryUpdatedAt = task.summaryUpdatedAt ?? task.taskUpdatedAt
+
+    return !readAt || readAt < summaryUpdatedAt
   })
 
   return (
@@ -96,7 +99,7 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
               name: task.name,
               status: task.status,
               note: task.note ?? "",
-              summaryUpdatedAt: task.summaryUpdatedAt?.toISOString() ?? null,
+              summaryUpdatedAt: (task.summaryUpdatedAt ?? task.taskUpdatedAt).toISOString(),
               assigned: task.assigned,
               project: task.project,
             }))}
