@@ -16,6 +16,5 @@ CREATE INDEX "TaskDependency_dependencyTaskId_idx" ON "TaskDependency"("dependen
 ALTER TABLE "TaskDependency" ADD CONSTRAINT "TaskDependency_blockedTaskId_fkey" FOREIGN KEY ("blockedTaskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "TaskDependency" ADD CONSTRAINT "TaskDependency_dependencyTaskId_fkey" FOREIGN KEY ("dependencyTaskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-UPDATE "Task"
-SET "summaryUpdatedAt" = CURRENT_TIMESTAMP
-WHERE "note" IS NOT NULL;
+-- summaryUpdatedAt is intentionally left null here. A later migration backfills
+-- it from taskUpdatedAt after that deterministic freshness column exists.
