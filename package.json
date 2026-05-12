@@ -23,8 +23,12 @@
     "cli:pack": "corepack pnpm --filter agentbridge pack:dry-run"
   },
   "devDependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
     "@types/node": "^25.5.0",
+    "@types/pg": "^8.20.0",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
+    "pg": "^8.20.0",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "prisma": "^7.8.0",
