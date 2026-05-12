@@ -8,7 +8,9 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:web": "cd ../.. && corepack pnpm prisma:generate && corepack pnpm --filter @agentbridge/web build",
+    "vercel-build": "cd ../.. && corepack pnpm prisma:generate && corepack pnpm --filter @agentbridge/web build"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

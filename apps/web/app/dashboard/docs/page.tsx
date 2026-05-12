@@ -12,29 +12,32 @@ import { getDashboardContext } from "@/lib/dashboard/companies"
 
 const commandGroups = [
   {
-    title: "Initialize OpenClaw agents",
+    title: "Project setup",
     description:
-      "Run this from an installed AgentBridge CLI to connect local OpenClaw agents to the active AgentBridge company.",
-    commands: ["agentbridge openclaw init"],
+      "Run the cron-first project/owner setup flow after installing or publishing the AgentBridge CLI.",
+    commands: [
+      "npx agentbridge init --every 1h",
+      "npx agentbridge init --every 15m",
+      'npx agentbridge init --cron "0 9 * * *" --tz Asia/Jakarta',
+    ],
   },
   {
     title: "Run from this repository during development",
     description:
-      "Use the filter command directly, or the corepack-safe workspace script, when testing the CLI before publishing or installing it globally.",
+      "Use Corepack and the CLI workspace package when testing the current repository version before publishing.",
     commands: [
-      "corepack pnpm --filter agentbridge dev -- openclaw init",
-      "corepack pnpm cli:dev -- openclaw init",
+      "corepack pnpm --filter agentbridge dev -- init --every 1h",
+      "corepack pnpm --filter agentbridge dev -- agent setup --agent kaito",
     ],
   },
   {
-    title: "Validate a workspace",
+    title: "Validate and inspect",
     description:
-      "Doctor checks the OpenClaw install and skill files. Check verifies a specific AgentId against AgentBridge.",
+      "Doctor checks the OpenClaw install and skill files. Check verifies a specific AgentId. Status shows generated config and cron details.",
     commands: [
-      "agentbridge openclaw doctor",
-      "agentbridge openclaw check --agent <AgentId>",
       "agentbridge openclaw doctor --workspace ~/.openclaw",
       "agentbridge openclaw check --workspace ~/.openclaw --agent kaito",
+      "agentbridge openclaw status --workspace ~/.openclaw",
     ],
   },
 ]
@@ -42,16 +45,23 @@ const commandGroups = [
 const setupSteps = [
   "Auto-detect the OpenClaw workspace and local agent candidates.",
   "Fetch company agents from AgentBridge and match them by AgentId or normalized name.",
-  "Ask you to confirm the selected AgentIds before writing files.",
+  "Ask you to confirm the selected AgentIds before writing files or cron jobs.",
   "Install the agent-ops skill used by agents to list, update, block, and finish tasks.",
-  "Write non-secret configuration plus a local .env file for the company token.",
-  "Add a heartbeat task-check marker to HEARTBEAT.md. Heartbeat is the default setup; cron is not the default workflow.",
+  "Write non-secret config plus a local .env file for the company token and base URL.",
+  "Create or update an idempotent OpenClaw cron job for each selected AgentId. The default schedule is hourly; use --every or --cron/--tz to override it.",
+]
+
+const generatedPaths = [
+  "skills/agent-ops/SKILL.md",
+  ".openclaw/agentbridge/config.json",
+  ".openclaw/agentbridge/.env",
+  'OpenClaw cron jobs named "AgentBridge <AgentId> project worker"',
 ]
 
 const troubleshooting = [
   {
     problem: "Bad token or unauthorized responses",
-    fix: "Re-run init with the correct company token. Never paste the token into logs, commits, tickets, or screenshots.",
+    fix: "Re-run init with the correct company token. Prefer prompts or the generated .env file; never paste the token into shell history, logs, commits, tickets, or screenshots.",
   },
   {
     problem: "AgentId not found",
@@ -62,8 +72,16 @@ const troubleshooting = [
     fix: "Run from the OpenClaw workspace or pass --workspace explicitly, such as --workspace ~/.openclaw.",
   },
   {
-    problem: "agent-ops skill missing",
-    fix: "Run agentbridge openclaw doctor, then run init again to reinstall skills/agent-ops/SKILL.md.",
+    problem: "Cron setup fails",
+    fix: "Run agentbridge openclaw doctor, confirm your OpenClaw install exposes cron control, then rerun init. The CLI no longer silently falls back to heartbeat edits.",
+  },
+  {
+    problem: "Adding or linking another agent",
+    fix: "Use agentbridge agent setup --agent <AgentId>. This installs or refreshes local config and skills for that agent without replacing the project owner cron setup.",
+  },
+  {
+    problem: "Need more API details",
+    fix: "Use /api/swagger in the dashboard app for Agent API docs, or /api/openapi for the raw OpenAPI JSON.",
   },
 ]
 
@@ -73,7 +91,8 @@ type DocsPageProps = {
 
 export default async function DocsPage({ searchParams }: DocsPageProps) {
   const { company } = await searchParams
-  const { session, companies, activeCompany } = await getDashboardContext(company)
+  const { session, companies, activeCompany } =
+    await getDashboardContext(company)
 
   if (!activeCompany) {
     redirect("/dashboard?createCompany=1")
@@ -91,8 +110,8 @@ export default async function DocsPage({ searchParams }: DocsPageProps) {
           <CardHeader>
             <CardTitle className="text-2xl">Docs</CardTitle>
             <CardDescription>
-              Practical AgentBridge CLI v1 usage for connecting OpenClaw agents to
-              your AgentBridge workspace.
+              Practical AgentBridge CLI v1 usage for connecting OpenClaw agents
+              to your AgentBridge workspace.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 text-sm leading-6 text-muted-foreground">
@@ -102,8 +121,19 @@ export default async function DocsPage({ searchParams }: DocsPageProps) {
                 The AgentBridge CLI initializes and validates the files OpenClaw
                 agents need to work through AgentBridge. Use it to install the
                 agent-ops skill, store local connection settings, confirm which
-                AgentIds belong to local agents, and set up heartbeat-based task
-                checks.
+                AgentIds belong to local agents, and create cron-based recurring
+                task checks.
+              </p>
+              <p>
+                Start with{" "}
+                <code className="text-foreground">agentbridge init</code> for
+                project/owner setup. Use{" "}
+                <code className="text-foreground">agentbridge agent setup</code>{" "}
+                when adding or linking an individual agent later. The legacy{" "}
+                <code className="text-foreground">
+                  agentbridge openclaw init
+                </code>{" "}
+                command remains a compatibility alias for project setup.
               </p>
             </section>
 
@@ -113,7 +143,9 @@ export default async function DocsPage({ searchParams }: DocsPageProps) {
                   key={group.title}
                   className="rounded-2xl border border-border bg-muted/40 p-4"
                 >
-                  <h3 className="font-semibold text-foreground">{group.title}</h3>
+                  <h3 className="font-semibold text-foreground">
+                    {group.title}
+                  </h3>
                   <p className="mt-2">{group.description}</p>
                   <div className="mt-4 space-y-2">
                     {group.commands.map((command) => (
@@ -151,23 +183,15 @@ export default async function DocsPage({ searchParams }: DocsPageProps) {
                 ))}
               </ol>
               <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                <h3 className="font-semibold text-foreground">Generated paths</h3>
+                <h3 className="font-semibold text-foreground">
+                  Generated paths
+                </h3>
                 <ul className="mt-3 list-disc space-y-2 pl-5">
-                  <li>
-                    <code className="text-foreground">skills/agent-ops/SKILL.md</code>
-                  </li>
-                  <li>
-                    <code className="text-foreground">
-                      .openclaw/agentbridge/config.json
-                    </code>
-                  </li>
-                  <li>
-                    <code className="text-foreground">.openclaw/agentbridge/.env</code>
-                  </li>
-                  <li>
-                    AgentBridge-managed marker block in{" "}
-                    <code className="text-foreground">HEARTBEAT.md</code>
-                  </li>
+                  {generatedPaths.map((path) => (
+                    <li key={path}>
+                      <code className="text-foreground">{path}</code>
+                    </li>
+                  ))}
                 </ul>
               </div>
             </CardContent>
@@ -177,30 +201,75 @@ export default async function DocsPage({ searchParams }: DocsPageProps) {
             <CardHeader>
               <CardTitle>Token safety</CardTitle>
               <CardDescription>
-                Company tokens are shared credentials. Treat them like production
-                secrets.
+                Company tokens are shared credentials. Treat them like
+                production secrets.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-sm leading-6 text-muted-foreground">
               <ul className="list-disc space-y-2 pl-5">
-                <li>Never print, commit, paste, or screenshot the company token.</li>
+                <li>
+                  Never print, commit, paste, or screenshot the company token.
+                </li>
                 <li>
                   Store the token only in{" "}
-                  <code className="text-foreground">.openclaw/agentbridge/.env</code>.
+                  <code className="text-foreground">
+                    .openclaw/agentbridge/.env
+                  </code>
+                  .
                 </li>
                 <li>
                   The CLI sets <code className="text-foreground">0600</code>
-                  permissions for the .env file where the operating system supports
-                  it.
+                  permissions for the .env file where the operating system
+                  supports it.
                 </li>
                 <li>
                   The CLI redacts tokens in errors and normal command output.
+                </li>
+                <li>
+                  Avoid command-line token flags on shared machines because
+                  shell history can retain them; prefer interactive prompts or
+                  the local .env file.
                 </li>
               </ul>
             </CardContent>
           </Card>
         </div>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>References</CardTitle>
+            <CardDescription>
+              Keep these docs aligned when CLI behavior changes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm leading-6 text-muted-foreground md:grid-cols-3">
+            <div className="rounded-2xl border border-border bg-muted/40 p-4">
+              <h3 className="font-semibold text-foreground">README</h3>
+              <p className="mt-2">
+                See the repository README for production setup, Docker notes,
+                and the OpenClaw CLI quick-start commands.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border bg-muted/40 p-4">
+              <h3 className="font-semibold text-foreground">CLI README</h3>
+              <p className="mt-2">
+                See{" "}
+                <code className="text-foreground">packages/cli/README.md</code>{" "}
+                for command options, local development commands, and package
+                testing notes.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border bg-muted/40 p-4">
+              <h3 className="font-semibold text-foreground">Agent API</h3>
+              <p className="mt-2">
+                Open <code className="text-foreground">/api/swagger</code> for
+                interactive API docs or{" "}
+                <code className="text-foreground">/api/openapi</code> for the
+                raw OpenAPI JSON.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
             <CardTitle>Troubleshooting</CardTitle>
@@ -215,7 +284,9 @@ export default async function DocsPage({ searchParams }: DocsPageProps) {
                   key={item.problem}
                   className="rounded-2xl border border-border bg-muted/40 p-4 text-sm leading-6"
                 >
-                  <h3 className="font-semibold text-foreground">{item.problem}</h3>
+                  <h3 className="font-semibold text-foreground">
+                    {item.problem}
+                  </h3>
                   <p className="mt-2 text-muted-foreground">{item.fix}</p>
                 </div>
               ))}
