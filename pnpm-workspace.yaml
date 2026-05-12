@@ -8,4 +8,5 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
 packages:
-  - cli
+  - apps/*
+  - packages/*

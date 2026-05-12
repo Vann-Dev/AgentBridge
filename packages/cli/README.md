@@ -33,7 +33,7 @@ Before publish, test the built package locally:
 
 ```bash
 corepack pnpm --filter agentbridge build
-node cli/dist/index.js openclaw status --workspace ~/.openclaw
+node packages/cli/dist/index.js openclaw status --workspace ~/.openclaw
 ```
 
 ## OpenClaw init behavior

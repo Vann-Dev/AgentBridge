@@ -350,7 +350,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     data.summaryUpdatedAt = data.note ? new Date() : null
   }
   const shouldClearNextStatusReads = !hasReadBy && (statusChanged || noteChanged)
-  const updatedTask = await prisma.$transaction(async (tx) => {
+  const updatedTask = await prisma.$transaction(async (tx: typeof prisma) => {
     if (hasReadBy) {
       await tx.taskReadMarker.deleteMany({
         where: {

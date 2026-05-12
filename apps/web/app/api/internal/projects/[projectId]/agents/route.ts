@@ -69,7 +69,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
     .filter((agent) => !previousAgentIds.has(agent.id))
     .map((agent) => agent.name)
 
-  const projectAgents = await prisma.$transaction(async (tx) => {
+  const projectAgents = await prisma.$transaction(async (tx: typeof prisma) => {
     await tx.projectAgent.deleteMany({
       where: {
         projectId: project.id,

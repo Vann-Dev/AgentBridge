@@ -405,7 +405,7 @@ const openApiDocument = swaggerJsdoc({
     },
     security: [{ bearerAuth: [] }],
   },
-  apis: ["./app/api/agent/**/*.ts", "./app/api/agent/route.ts"],
+  apis: ["./apps/web/app/api/agent/**/*.ts", "./apps/web/app/api/agent/route.ts"],
 })
 
 export function GET() {
