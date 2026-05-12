@@ -376,13 +376,17 @@ AUTH_SECRET="replace-with-a-long-random-string" docker compose up --build
 
 For production-like environments:
 
-1. Provide a managed PostgreSQL `DATABASE_URL`.
-2. Set a strong `AUTH_SECRET`.
-3. Run migrations with `prisma migrate deploy` as part of release startup or deployment automation.
-4. Generate Prisma client code before building, or use the existing root `build`/`build:web` scripts.
-5. Seed or create the first operator account through an approved operational process.
-6. Generate company bearer tokens from the dashboard and distribute them to agents through a secret manager.
-7. Monitor `GET /api/health` after deploys. Treat HTTP `200` as ready and HTTP `503` as the app running but not ready because database connectivity failed.
+1. Provide a managed or externally operated PostgreSQL `DATABASE_URL`.
+2. Set a strong `AUTH_SECRET` and keep it stable across app restarts.
+3. Take or verify a fresh database backup before running migrations.
+4. Run `prisma migrate deploy` once per release before scaling multiple app replicas.
+5. Start the app and monitor `GET /api/health`. Treat HTTP `200` as ready and HTTP `503` as the app running but not ready because database connectivity failed.
+6. Smoke test login/dashboard access and `/api/agent` authentication with a test company token and AgentId.
+7. Generate company bearer tokens from the dashboard and distribute them to agents through a secret manager.
+
+The current Docker entrypoint runs `prisma migrate deploy` on startup. That is convenient for single-container deployments, but production multi-replica rollouts should prefer a one-off migration job or a one-replica-at-a-time rollout to avoid concurrent migration attempts. Database rollback is not automatic: restore from the pre-deploy backup or apply a forward-fix migration if a schema/data problem is found.
+
+See [docs/production-runbook.md](docs/production-runbook.md) for the full deploy, migration, backup, rollback, health, smoke-check, and log-inspection runbook.
 
 Do not commit `.env`, real bearer tokens, database credentials, `.next`, `node_modules`, or generated local logs.
 
