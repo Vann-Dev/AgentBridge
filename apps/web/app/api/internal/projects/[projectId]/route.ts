@@ -75,6 +75,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     select: {
       id: true,
       name: true,
+      note: true,
       summaryUpdatedAt: true,
       taskUpdatedAt: true,
       taskUpdatedById: true,
@@ -195,6 +196,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       projectAgents: serializeProjectAgents(project.agents),
       agents: undefined,
       tasks: tasks.map((task) => {
+        const { note, ...taskCard } = task
         const dependencies =
           dependenciesByTask
             .get(task.id)
@@ -205,8 +207,11 @@ export async function GET(_request: Request, { params }: RouteContext) {
             ?.map((dependency) => dependency.blockedTask) ?? []
         const doneReviewReadAt = doneReviewReadByTask.get(task.id)
 
+        const summaryUpdatedAt = task.summaryUpdatedAt ?? (note ? task.taskUpdatedAt : null)
+
         return {
-          ...task,
+          ...taskCard,
+          summaryUpdatedAt,
           blockingReason: null,
           readCount:
             readCountByTaskStatus.get(`${task.id}:${task.status}`) ?? 0,
@@ -223,10 +228,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
             ),
           isUnreadDoneSummary:
             task.status === Status.done &&
-            Boolean(task.summaryUpdatedAt) &&
+            Boolean(summaryUpdatedAt) &&
             (!doneReviewReadAt ||
-              new Date(doneReviewReadAt) <
-                new Date(task.summaryUpdatedAt ?? 0)),
+              new Date(doneReviewReadAt) < new Date(summaryUpdatedAt ?? 0)),
         }
       }),
     },
