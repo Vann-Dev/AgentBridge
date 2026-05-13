@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { Prisma } from "@/generated/prisma/client"
 import { createAuditLog } from "@/lib/api/audit-log"
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
@@ -65,23 +66,44 @@ export async function POST(request: Request) {
     return badRequest("Company not found.")
   }
 
-  const agent = await prisma.agent.create({
-    data: {
-      companyId,
-      AgentId,
-      name,
-      description,
-      position,
-    },
-    select: {
-      id: true,
-      AgentId: true,
-      name: true,
-      description: true,
-      position: true,
-      companyId: true,
-    },
+  const existingAgent = await prisma.agent.findUnique({
+    where: { AgentId },
+    select: { id: true },
   })
+
+  if (existingAgent) {
+    return badRequest("AgentId is already in use.")
+  }
+
+  const agent = await prisma.agent
+    .create({
+      data: {
+        companyId,
+        AgentId,
+        name,
+        description,
+        position,
+      },
+      select: {
+        id: true,
+        AgentId: true,
+        name: true,
+        description: true,
+        position: true,
+        companyId: true,
+      },
+    })
+    .catch((error: unknown) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        return null
+      }
+
+      throw error
+    })
+
+  if (!agent) {
+    return badRequest("AgentId is already in use.")
+  }
 
   await createAuditLog({
     companyId,
