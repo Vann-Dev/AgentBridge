@@ -31,7 +31,12 @@ export function isResponseCacheEnabled() {
 export async function getCachedJson<T>(key: string): Promise<T | null> {
   if (!cacheRedis) return null
 
-  return await cacheRedis.get<T>(key)
+  try {
+    return await cacheRedis.get<T>(key)
+  } catch (error) {
+    logCacheError("read", error)
+    return null
+  }
 }
 
 export async function setCachedJson<T>(
@@ -41,7 +46,11 @@ export async function setCachedJson<T>(
 ) {
   if (!cacheRedis) return
 
-  await cacheRedis.set(key, value, { ex: ttlSeconds })
+  try {
+    await cacheRedis.set(key, value, { ex: ttlSeconds })
+  } catch (error) {
+    logCacheError("write", error)
+  }
 }
 
 export async function cacheJson<T>(
@@ -68,31 +77,49 @@ export async function cacheJson<T>(
 export async function getCompanyCacheVersion(companyId: string) {
   if (!cacheRedis) return "0"
 
-  return String(
-    (await cacheRedis.get<number | string | null>(companyVersionKey(companyId))) ??
-      "0"
-  )
+  try {
+    return String(
+      (await cacheRedis.get<number | string | null>(companyVersionKey(companyId))) ??
+        "0"
+    )
+  } catch (error) {
+    logCacheError("company version read", error)
+    return "0"
+  }
 }
 
 export async function getProjectCacheVersion(projectId: string) {
   if (!cacheRedis) return "0"
 
-  return String(
-    (await cacheRedis.get<number | string | null>(projectVersionKey(projectId))) ??
-      "0"
-  )
+  try {
+    return String(
+      (await cacheRedis.get<number | string | null>(projectVersionKey(projectId))) ??
+        "0"
+    )
+  } catch (error) {
+    logCacheError("project version read", error)
+    return "0"
+  }
 }
 
 export async function invalidateCompanyCache(companyId: string) {
   if (!cacheRedis) return
 
-  await cacheRedis.incr(companyVersionKey(companyId))
+  try {
+    await cacheRedis.incr(companyVersionKey(companyId))
+  } catch (error) {
+    logCacheError("company invalidation", error)
+  }
 }
 
 export async function invalidateProjectCache(projectId: string) {
   if (!cacheRedis) return
 
-  await cacheRedis.incr(projectVersionKey(projectId))
+  try {
+    await cacheRedis.incr(projectVersionKey(projectId))
+  } catch (error) {
+    logCacheError("project invalidation", error)
+  }
 }
 
 export async function invalidateProjectAndCompanyCache({
@@ -125,4 +152,10 @@ function companyVersionKey(companyId: string) {
 
 function projectVersionKey(projectId: string) {
   return cacheKey(["v", "project", projectId])
+}
+
+function logCacheError(operation: string, error: unknown) {
+  console.warn(`[cache] Redis ${operation} failed; continuing without cache.`, {
+    error: error instanceof Error ? error.message : String(error),
+  })
 }
