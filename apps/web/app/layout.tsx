@@ -68,6 +68,13 @@ export const metadata: Metadata = {
     title: siteName,
     description: siteDescription,
   },
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
+  },
 }
 
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-sans" })
