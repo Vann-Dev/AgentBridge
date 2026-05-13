@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { apiJson } from "@/lib/api/client"
+import { changeUsernameAction } from "@/app/dashboard/settings/actions"
 
 type ChangeUsernameDialogProps = {
   username: string
@@ -26,9 +26,12 @@ export function ChangeUsernameDialog({ username }: ChangeUsernameDialogProps) {
   const [message, setMessage] = useState<string | null>(null)
   const mutation = useMutation({
     mutationFn: (payload: { username: string; password: string }) =>
-      apiJson<{ statusCode: 200 }>("/api/internal/account/username", {
-        method: "PUT",
-        body: JSON.stringify(payload),
+      changeUsernameAction(payload).then((result) => {
+        if (!result.ok) {
+          throw new Error(result.error)
+        }
+
+        return result
       }),
     onSuccess: () => {
       setMessage("Username changed.")

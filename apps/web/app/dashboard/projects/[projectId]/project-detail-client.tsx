@@ -15,53 +15,30 @@ import { CreateTaskDialog } from "./create-task-dialog"
 import { ProjectAgentsManager } from "./project-agents-manager"
 import { ProjectOverview, ProjectOverviewSkeleton } from "./project-overview"
 import { TaskKanban, TaskKanbanSkeleton } from "./task-kanban"
-import type { ProjectDetailData, RequestDiagnostics } from "./types"
+import { getProjectDetailAction } from "./actions"
+import type { ProjectDetailData } from "./types"
 
 type ProjectDetailClientProps = {
   initialProject: ProjectDetailData
   projectId: string
 }
 
-type TimedApiJsonResult<T> = T & {
-  diagnostics?: RequestDiagnostics
-}
-
-async function timedApiJson<T>(
-  input: RequestInfo | URL,
-  label: string
-): Promise<TimedApiJsonResult<T>> {
-  const startedAt = performance.now()
-  const response = await fetch(input, {
-    headers: { "Content-Type": "application/json" },
-  })
-  const data = (await response.json().catch(() => null)) as T & {
-    error?: string
-  }
-  const diagnostics: RequestDiagnostics = {
-    label,
-    clientDurationMs: Math.round(performance.now() - startedAt),
-    serverTiming: response.headers.get("Server-Timing"),
-  }
-
-  if (!response.ok) {
-    throw new Error(data?.error ?? "Request failed")
-  }
-
-  return { ...data, diagnostics }
-}
-
 export function ProjectDetailClient({ initialProject, projectId }: ProjectDetailClientProps) {
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
-    queryFn: () =>
-      timedApiJson<{ project: ProjectDetailData }>(
-        `/api/internal/projects/${projectId}`,
-        "project board"
-      ),
+    queryFn: async () => {
+      const result = await getProjectDetailAction(projectId)
+
+      if (!result.ok) {
+        throw new Error(result.error)
+      }
+
+      return { project: result.project }
+    },
     initialData: { project: initialProject },
   })
   const project = projectQuery.data.project
-  const projectDiagnostics = projectQuery.data.diagnostics
+  const projectDiagnostics = undefined
   const agents = project.projectAgents
   const companyAgents = project.company.agents
   const isLoadingProjectData = projectQuery.isFetching && project.tasks.length === 0

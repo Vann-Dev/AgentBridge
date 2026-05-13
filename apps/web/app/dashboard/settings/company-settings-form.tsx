@@ -20,7 +20,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { apiJson } from "@/lib/api/client"
+import {
+  deleteCompanyAction,
+  rotateCompanyTokenAction,
+  updateCompanyAction,
+} from "./actions"
 
 type CompanySettingsFormProps = {
   company: {
@@ -36,13 +40,13 @@ export function CompanySettingsForm({ company }: CompanySettingsFormProps) {
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
   const updateMutation = useMutation({
     mutationFn: (payload: { name: string; description: string }) =>
-      apiJson<{ company: CompanySettingsFormProps["company"] }>(
-        `/api/internal/companies/${company.id}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify(payload),
+      updateCompanyAction(company.id, payload).then((result) => {
+        if (!result.ok) {
+          throw new Error(result.error)
         }
-      ),
+
+        return result
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["companies"] })
       router.refresh()
@@ -50,9 +54,12 @@ export function CompanySettingsForm({ company }: CompanySettingsFormProps) {
   })
   const deleteMutation = useMutation({
     mutationFn: () =>
-      apiJson<{ companyId: string }>(`/api/internal/companies/${company.id}`, {
-        method: "DELETE",
-        body: JSON.stringify({ confirmationName: deleteConfirmation }),
+      deleteCompanyAction(company.id, deleteConfirmation).then((result) => {
+        if (!result.ok) {
+          throw new Error(result.error)
+        }
+
+        return result
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["companies"] })
@@ -62,9 +69,12 @@ export function CompanySettingsForm({ company }: CompanySettingsFormProps) {
   })
   const tokenMutation = useMutation({
     mutationFn: () =>
-      apiJson<{ token: string }>(`/api/internal/companies/${company.id}`, {
-        method: "POST",
-        body: JSON.stringify({ confirmRotation: true }),
+      rotateCompanyTokenAction(company.id).then((result) => {
+        if (!result.ok) {
+          throw new Error(result.error)
+        }
+
+        return result
       }),
   })
 
