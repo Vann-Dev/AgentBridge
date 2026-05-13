@@ -37,6 +37,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|agentbridge-logo.jpg|favicon.ico|icon.png|apple-icon.png).*)",
+    "/((?!api|_next/static|_next/image|agentbridge-logo.png|favicon.ico|favicon-16x16.png|favicon-32x32.png|icon.png|apple-icon.png|apple-touch-icon.png|android-chrome-192x192.png|android-chrome-512x512.png|site.webmanifest).*)",
   ],
 }
