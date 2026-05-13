@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { createAuditLog } from "@/lib/api/audit-log"
+import {
+  cacheJson,
+  cacheKey,
+  cacheStatusHeader,
+  cacheTtl,
+  getCompanyCacheVersion,
+  invalidateCompanyCache,
+} from "@/lib/api/cache"
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -15,15 +23,32 @@ export async function GET(request: NextRequest) {
     return badRequest("Company is required.")
   }
 
-  const projects = await prisma.project.findMany({
-    where: {
-      companyId,
-      company: { userId: session.userId },
-    },
-    orderBy: { name: "asc" },
+  const company = await prisma.company.findFirst({
+    where: { id: companyId, userId: session.userId },
+    select: { id: true },
   })
 
-  return NextResponse.json({ statusCode: 200, projects })
+  if (!company) {
+    return badRequest("Company not found.")
+  }
+
+  const companyVersion = await getCompanyCacheVersion(companyId)
+  const { value, cacheStatus } = await cacheJson(
+    cacheKey(["internal", "projects", session.userId, companyId, companyVersion]),
+    cacheTtl.projectList,
+    async () => {
+      const projects = await prisma.project.findMany({
+        where: { companyId },
+        orderBy: { name: "asc" },
+      })
+
+      return { statusCode: 200, projects }
+    }
+  )
+
+  return NextResponse.json(value, {
+    headers: { "X-AgentBridge-Cache": cacheStatusHeader(cacheStatus) },
+  })
 }
 
 export async function POST(request: Request) {
@@ -68,6 +93,7 @@ export async function POST(request: Request) {
     actor: { type: "user", id: session.userId, name: session.username },
     details: description ? "Project created with a description." : "Project created.",
   })
+  await invalidateCompanyCache(companyId)
 
   return NextResponse.json({ statusCode: 201, project }, { status: 201 })
 }

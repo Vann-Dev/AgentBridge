@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { Prisma } from "@/generated/prisma/client"
 import { createAuditLog } from "@/lib/api/audit-log"
+import {
+  cacheJson,
+  cacheKey,
+  cacheStatusHeader,
+  cacheTtl,
+  getCompanyCacheVersion,
+  invalidateCompanyCache,
+} from "@/lib/api/cache"
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -16,23 +24,40 @@ export async function GET(request: NextRequest) {
     return badRequest("Company is required.")
   }
 
-  const agents = await prisma.agent.findMany({
-    where: {
-      companyId,
-      company: { userId: session.userId },
-    },
-    orderBy: { name: "asc" },
-    select: {
-      id: true,
-      AgentId: true,
-      name: true,
-      description: true,
-      position: true,
-      companyId: true,
-    },
+  const company = await prisma.company.findFirst({
+    where: { id: companyId, userId: session.userId },
+    select: { id: true },
   })
 
-  return NextResponse.json({ statusCode: 200, agents })
+  if (!company) {
+    return badRequest("Company not found.")
+  }
+
+  const companyVersion = await getCompanyCacheVersion(companyId)
+  const { value, cacheStatus } = await cacheJson(
+    cacheKey(["internal", "agents", session.userId, companyId, companyVersion]),
+    cacheTtl.agentList,
+    async () => {
+      const agents = await prisma.agent.findMany({
+        where: { companyId },
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          AgentId: true,
+          name: true,
+          description: true,
+          position: true,
+          companyId: true,
+        },
+      })
+
+      return { statusCode: 200, agents }
+    }
+  )
+
+  return NextResponse.json(value, {
+    headers: { "X-AgentBridge-Cache": cacheStatusHeader(cacheStatus) },
+  })
 }
 
 export async function POST(request: Request) {
@@ -112,6 +137,7 @@ export async function POST(request: Request) {
     actor: { type: "user", id: session.userId, name: session.username },
     details: `Created AgentId ${agent.AgentId}.`,
   })
+  await invalidateCompanyCache(companyId)
 
   return NextResponse.json({ statusCode: 201, agent }, { status: 201 })
 }

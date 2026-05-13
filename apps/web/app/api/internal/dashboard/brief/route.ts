@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
+import {
+  cacheJson,
+  cacheKey,
+  cacheStatusHeader,
+  cacheTtl,
+  getCompanyCacheVersion,
+  getProjectCacheVersion,
+} from "@/lib/api/cache"
 import { badRequest, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -47,16 +55,33 @@ export async function GET(request: NextRequest) {
     return badRequest("Project not found.")
   }
 
-  const now = new Date()
-  const since = getRangeStart(rangeParam, now)
-  const projectWhere = projectId
+  const companyVersion = await getCompanyCacheVersion(company.id)
+  const projectVersion = projectId
+    ? await getProjectCacheVersion(projectId)
+    : "none"
+  const { value, cacheStatus } = await cacheJson(
+    cacheKey([
+      "internal",
+      "dashboard-brief",
+      session.userId,
+      company.id,
+      projectId,
+      rangeParam,
+      companyVersion,
+      projectVersion,
+    ]),
+    cacheTtl.dashboardBrief,
+    async () => {
+      const now = new Date()
+      const since = getRangeStart(rangeParam, now)
+      const projectWhere = projectId
     ? { id: projectId, companyId: company.id }
     : { companyId: company.id }
-  const taskWhere = {
+      const taskWhere = {
     archivedAt: null,
     project: projectWhere,
   }
-  const projectTaskIds = projectId
+      const projectTaskIds = projectId
     ? await prisma.task.findMany({
         where: {
           projectId,
@@ -65,7 +90,7 @@ export async function GET(request: NextRequest) {
         select: { id: true },
       })
     : []
-  const auditLogWhere = projectId
+      const auditLogWhere = projectId
     ? {
         companyId: company.id,
         createdAt: { gte: since },
@@ -81,7 +106,7 @@ export async function GET(request: NextRequest) {
         companyId: company.id,
         createdAt: { gte: since },
       }
-  const taskSelect = {
+      const taskSelect = {
     id: true,
     name: true,
     status: true,
@@ -105,14 +130,14 @@ export async function GET(request: NextRequest) {
     },
   }
 
-  const [
+      const [
     projects,
     changedTasks,
     blockedTasks,
     completedTasks,
     latestNotes,
     auditLogs,
-  ] = await Promise.all([
+      ] = await Promise.all([
     prisma.project.findMany({
       where: { companyId: company.id },
       orderBy: { name: "asc" },
@@ -180,14 +205,14 @@ export async function GET(request: NextRequest) {
     }),
   ])
 
-  const readyForReview = latestNotes
+      const readyForReview = latestNotes
     .filter((task) => task.status === Status.done && task.note?.trim())
     .slice(0, sectionLimit)
     .map((task) => ({
       ...serializeTask(task),
       reason: getReviewReason(task.name, task.note ?? ""),
     }))
-  const brief = {
+      const brief = {
     range: {
       key: rangeParam,
       label: rangeParam === "today" ? "Last 24 hours" : "Last 7 days",
@@ -251,7 +276,13 @@ export async function GET(request: NextRequest) {
     }),
   }
 
-  const jsonResponse = NextResponse.json({ statusCode: 200, brief })
+      return { statusCode: 200, brief }
+    }
+  )
+
+  const jsonResponse = NextResponse.json(value, {
+    headers: { "X-AgentBridge-Cache": cacheStatusHeader(cacheStatus) },
+  })
   jsonResponse.headers.set(
     "Server-Timing",
     `dashboard-brief;dur=${Date.now() - startedAt}`
