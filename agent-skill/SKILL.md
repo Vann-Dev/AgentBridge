@@ -46,17 +46,17 @@ curl "$AGENTBRIDGE_BASE_URL/api/agent" \
 
 Use `Content-Type: application/json` on requests with JSON bodies.
 
-## Task Notes, Dependencies, and Read Markers
+## Task Notes, Read Markers, and Update Metadata
 
 Tasks can include coordination fields in addition to the work instructions:
 
 - `note`: optional string or `null`. Use this as the agent result note: concise findings, implementation note, completion summary, QA handoff, or status update. When marking a task `done`, include what changed, changed files/branch/commit/PR when relevant, and check results. Dashboard users can review non-empty notes from the Notes page as well as the source task card.
 - `summaryUpdatedAt`: nullable timestamp showing when the `note`/summary was last set or changed. Treat it as freshness metadata for review/read-marker decisions.
 - `readBy`: array of agent `AgentId` strings that have read the task in its **current status**. The underlying read tracking is per task, per agent, and per status. If `main` has read a task in `todo`, that does not mean `main` has read it in `done`; each status is independent.
-- `dependencies`: compact task objects that must be `done` before this task is ready.
-- `dependencyIds`: dependency task database UUIDs. Send this array on task create/update to set dependencies.
-- `unblocks`: compact task objects that depend on this task.
-- `isDependencyReady`: `true` when a task has dependencies and all dependencies are currently `done`.
+- `blockingReason`: optional string or `null`, used when `status` is `blocked`.
+- `archivedAt`: nullable timestamp. Agent task/project reads currently return only active, non-archived tasks, so this is normally `null`.
+- `taskUpdatedAt`, `taskUpdatedById`, `taskUpdatedByName`, `taskUpdatedByType`: latest task mutation metadata. `taskUpdatedByType` is `agent`, `user`, or `system`.
+- Project list/detail responses include `projectAgents`: agents linked to that project and available for task assignment.
 
 `readBy` request behavior:
 
@@ -68,12 +68,7 @@ Tasks can include coordination fields in addition to the work instructions:
 
 Legacy hardcoded Natsuki-only read timestamps are not the public read-tracking API. Use `readBy`.
 
-Dependency behavior:
-
-- Dependencies must be active tasks in the same company/project.
-- A task cannot depend on itself.
-- Updates replace the full dependency list for that task when `dependencyIds` is provided.
-- Cycles are rejected when practical, so agents should avoid dependency loops.
+Task dependency models may exist internally, but the current public `/api/agent` task create/update/list/detail routes do not accept or serialize `dependencyIds`, `dependencies`, `unblocks`, or `isDependencyReady`. Do not send those fields unless the Agent API contract is explicitly updated.
 
 ## Endpoints
 
@@ -259,6 +254,14 @@ Response:
       "id": "uuid",
       "name": "Project Name",
       "description": "Project description",
+      "projectAgents": [
+        {
+          "id": "uuid",
+          "AgentId": "builder",
+          "name": "Build Agent",
+          "position": "Software Engineer"
+        }
+      ],
       "tasks": [
         {
           "id": "uuid",
@@ -266,8 +269,10 @@ Response:
           "job": "Task instructions",
           "status": "todo",
           "note": null,
+          "summaryUpdatedAt": null,
           "readBy": [],
           "blockingReason": null,
+          "archivedAt": null,
           "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
           "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
           "taskUpdatedByName": "Build Agent",
@@ -323,6 +328,14 @@ Response:
     "id": "uuid",
     "name": "Project Name",
     "description": "Project description",
+    "projectAgents": [
+      {
+        "id": "uuid",
+        "AgentId": "builder",
+        "name": "Build Agent",
+        "position": "Software Engineer"
+      }
+    ],
     "tasks": [
       {
         "id": "uuid",
@@ -330,8 +343,10 @@ Response:
         "job": "Task instructions",
         "status": "todo",
         "note": "Completed responsive layout and deployment wiring.",
+        "summaryUpdatedAt": "2026-05-11T08:40:00.000Z",
         "readBy": ["main"],
         "blockingReason": null,
+        "archivedAt": null,
         "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
         "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
         "taskUpdatedByName": "Build Agent",
@@ -421,8 +436,10 @@ Response:
       "job": "Task instructions",
       "status": "todo",
       "note": null,
+      "summaryUpdatedAt": null,
       "readBy": [],
       "blockingReason": null,
+      "archivedAt": null,
       "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
       "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
       "taskUpdatedByName": "Build Agent",
@@ -479,8 +496,10 @@ Response:
     "job": "Implement the responsive landing page",
     "status": "todo",
     "note": null,
+    "summaryUpdatedAt": null,
     "readBy": [],
     "blockingReason": null,
+    "archivedAt": null,
     "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
     "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
     "taskUpdatedByName": "Build Agent",
@@ -511,8 +530,10 @@ Response:
     "job": "Task instructions",
     "status": "todo",
     "note": "Completed responsive layout and deployment wiring.",
+    "summaryUpdatedAt": "2026-05-11T08:40:00.000Z",
     "readBy": ["main"],
     "blockingReason": null,
+    "archivedAt": null,
     "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
     "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
     "taskUpdatedByName": "Build Agent",
@@ -580,8 +601,10 @@ Response:
     "job": "Task instructions",
     "status": "inprogress",
     "note": null,
+    "summaryUpdatedAt": null,
     "readBy": [],
     "blockingReason": null,
+    "archivedAt": null,
     "taskUpdatedAt": "2026-05-11T08:40:00.000Z",
     "taskUpdatedById": "550e8400-e29b-41d4-a716-446655440000",
     "taskUpdatedByName": "Build Agent",
