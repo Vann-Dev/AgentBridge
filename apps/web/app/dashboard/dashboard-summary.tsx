@@ -1,9 +1,3 @@
-"use client"
-
-import { useQuery } from "@tanstack/react-query"
-
-import { Button } from "@/components/ui/button"
-import { apiJson } from "@/lib/api/client"
 
 type DashboardSummary = {
   agents: number
@@ -12,21 +6,12 @@ type DashboardSummary = {
 }
 
 type DashboardSummaryProps = {
-  companyId: string | null
   companyCount: number
+  summary: DashboardSummary | null
 }
 
-export function DashboardSummary({ companyId, companyCount }: DashboardSummaryProps) {
-  const summaryQuery = useQuery({
-    queryKey: ["dashboard-summary", companyId],
-    queryFn: () =>
-      apiJson<{ summary: DashboardSummary }>(
-        `/api/internal/dashboard/summary?companyId=${companyId}`
-      ),
-    enabled: Boolean(companyId),
-  })
-
-  if (!companyId) {
+export function DashboardSummary({ companyCount, summary }: DashboardSummaryProps) {
+  if (!summary) {
     return (
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard label="Companies" value={companyCount} />
@@ -36,29 +21,16 @@ export function DashboardSummary({ companyId, companyCount }: DashboardSummaryPr
     )
   }
 
-  if (summaryQuery.isError) {
-    return (
-      <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-        <p>{summaryQuery.error.message}</p>
-        <Button className="mt-3" size="sm" variant="outline" onClick={() => summaryQuery.refetch()}>
-          Retry
-        </Button>
-      </div>
-    )
-  }
-
-  const summary = summaryQuery.data?.summary
-  const activeTasks = (summary?.tasks.inprogress ?? 0) + (summary?.tasks.blocked ?? 0)
+  const activeTasks = (summary.tasks.inprogress ?? 0) + (summary.tasks.blocked ?? 0)
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <MetricCard label="Companies" value={companyCount} />
-      <MetricCard label="Agents" value={summary?.agents ?? "-"} loading={summaryQuery.isLoading} />
+      <MetricCard label="Agents" value={summary.agents} />
       <MetricCard
         label="Projects"
-        value={summary?.projects ?? "-"}
-        helper={summary ? `${activeTasks} active or blocked tasks` : undefined}
-        loading={summaryQuery.isLoading}
+        value={summary.projects}
+        helper={`${activeTasks} active or blocked tasks`}
       />
     </div>
   )

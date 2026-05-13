@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useActionState, useState } from "react"
+import { useFormStatus } from "react-dom"
 import { MoreHorizontalIcon } from "lucide-react"
 
 import {
@@ -33,7 +33,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { apiJson } from "@/lib/api/client"
+
+import { deleteAgentAction, updateAgentAction } from "./actions"
 
 type AgentRow = {
   id: string
@@ -45,58 +46,13 @@ type AgentRow = {
 
 type AgentRowActionsProps = {
   agent: AgentRow
-  companyId: string | null
 }
 
-export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
+export function AgentRowActions({ agent }: AgentRowActionsProps) {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const queryClient = useQueryClient()
-
-  function invalidateAgentData() {
-    queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
-    queryClient.invalidateQueries({
-      queryKey: ["dashboard-summary", companyId],
-    })
-    queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
-    queryClient.invalidateQueries({ queryKey: ["project"] })
-  }
-
-  const editMutation = useMutation({
-    mutationFn: (payload: {
-      AgentId: string
-      name: string
-      description: string
-      position: string
-    }) =>
-      apiJson<{ agent: AgentRow }>(`/api/internal/agents/${agent.id}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      setEditOpen(false)
-      invalidateAgentData()
-    },
-  })
-  const deleteMutation = useMutation({
-    mutationFn: () =>
-      apiJson(`/api/internal/agents/${agent.id}`, {
-        method: "DELETE",
-      }),
-    onSuccess: () => {
-      setDeleteOpen(false)
-      invalidateAgentData()
-    },
-  })
-
-  function editAction(formData: FormData) {
-    editMutation.mutate({
-      AgentId: String(formData.get("AgentId") ?? ""),
-      name: String(formData.get("name") ?? ""),
-      description: String(formData.get("description") ?? ""),
-      position: String(formData.get("position") ?? ""),
-    })
-  }
+  const [editState, editAction] = useActionState(updateAgentAction, {})
+  const [deleteState, deleteAction] = useActionState(deleteAgentAction, {})
 
   return (
     <div className="flex justify-end gap-2">
@@ -133,6 +89,7 @@ export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
             </DialogDescription>
           </DialogHeader>
           <form action={editAction} className="space-y-4">
+            <input name="agentId" type="hidden" value={agent.id} />
             <div className="space-y-2">
               <Label htmlFor={`agent-api-id-${agent.id}`}>AgentId</Label>
               <Input
@@ -175,14 +132,12 @@ export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
                 rows={4}
               />
             </div>
-            {editMutation.error ? (
+            {editState.error ? (
               <p className="text-sm text-destructive">
-                {editMutation.error.message}
+                {editState.error}
               </p>
             ) : null}
-            <Button disabled={editMutation.isPending} type="submit">
-              {editMutation.isPending ? "Saving..." : "Save changes"}
-            </Button>
+            <SaveAgentButton />
           </form>
         </DialogContent>
       </Dialog>
@@ -196,25 +151,44 @@ export function AgentRowActions({ agent, companyId }: AgentRowActionsProps) {
               other agents.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {deleteMutation.error ? (
+          {deleteState.error ? (
             <p className="text-sm text-destructive">
-              {deleteMutation.error.message}
+              {deleteState.error}
             </p>
           ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <form action={() => deleteMutation.mutate()}>
-              <AlertDialogAction
-                disabled={deleteMutation.isPending}
-                variant="destructive"
-                type="submit"
-              >
-                {deleteMutation.isPending ? "Deleting..." : "Delete"}
-              </AlertDialogAction>
+            <form action={deleteAction}>
+              <input name="agentId" type="hidden" value={agent.id} />
+              <DeleteAgentButton />
             </form>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+}
+
+function SaveAgentButton() {
+  const { pending } = useFormStatus()
+
+  return (
+    <Button disabled={pending} type="submit">
+      {pending ? "Saving..." : "Save changes"}
+    </Button>
+  )
+}
+
+function DeleteAgentButton() {
+  const { pending } = useFormStatus()
+
+  return (
+    <AlertDialogAction
+      disabled={pending}
+      variant="destructive"
+      type="submit"
+    >
+      {pending ? "Deleting..." : "Delete"}
+    </AlertDialogAction>
   )
 }

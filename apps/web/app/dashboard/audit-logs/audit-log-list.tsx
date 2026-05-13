@@ -1,10 +1,6 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
-
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { apiJson } from "@/lib/api/client"
 
 type AuditLog = {
   id: string
@@ -19,43 +15,10 @@ type AuditLog = {
 }
 
 type AuditLogListProps = {
-  companyId: string
-  initialAuditLogs: AuditLog[]
+  auditLogs: AuditLog[]
 }
 
-export function AuditLogList({ companyId, initialAuditLogs }: AuditLogListProps) {
-  const auditLogQuery = useQuery({
-    queryKey: ["audit-logs", companyId],
-    queryFn: () =>
-      apiJson<{ auditLogs: AuditLog[] }>(`/api/internal/audit-logs?companyId=${companyId}`),
-    initialData: { auditLogs: initialAuditLogs },
-  })
-  const auditLogs = auditLogQuery.data.auditLogs
-
-  if (auditLogQuery.isError) {
-    return (
-      <div className="rounded-3xl border border-destructive/30 bg-destructive/5 p-6 text-sm">
-        <p className="font-medium text-destructive">Could not load audit logs.</p>
-        <p className="mt-1 text-muted-foreground">
-          {auditLogQuery.error.message || "Please try again."}
-        </p>
-        <Button className="mt-4" variant="outline" onClick={() => auditLogQuery.refetch()}>
-          Retry
-        </Button>
-      </div>
-    )
-  }
-
-  if (auditLogQuery.isLoading) {
-    return (
-      <div className="space-y-3">
-        {Array.from({ length: 5 }).map((_, index) => (
-          <div key={index} className="h-24 animate-pulse rounded-3xl bg-muted" />
-        ))}
-      </div>
-    )
-  }
-
+export function AuditLogList({ auditLogs }: AuditLogListProps) {
   if (auditLogs.length === 0) {
     return (
       <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-8 text-center">

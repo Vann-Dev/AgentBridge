@@ -2,6 +2,7 @@ import { BrandLogo } from "@/components/brand-logo"
 import { CreateCompanyDialog } from "@/components/dashboard/create-company-dialog"
 import { DashboardShell } from "@/components/dashboard/shell"
 import { getDashboardContext } from "@/lib/dashboard/companies"
+import { prisma } from "@/lib/prisma"
 
 import { DashboardSummary } from "./dashboard-summary"
 
@@ -12,6 +13,7 @@ type DashboardPageProps = {
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const { company, createCompany } = await searchParams
   const { session, companies, activeCompany } = await getDashboardContext(company)
+  const summary = activeCompany ? await getDashboardSummary(activeCompany.id) : null
 
   return (
     <DashboardShell
@@ -42,8 +44,28 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           ) : null}
         </div>
 
-        <DashboardSummary companyId={activeCompany?.id ?? null} companyCount={companies.length} />
+        <DashboardSummary companyCount={companies.length} summary={summary} />
       </div>
     </DashboardShell>
   )
+}
+
+async function getDashboardSummary(companyId: string) {
+  const [agents, projects, tasks] = await Promise.all([
+    prisma.agent.count({ where: { companyId } }),
+    prisma.project.count({ where: { companyId } }),
+    prisma.task.groupBy({
+      by: ["status"],
+      where: { project: { companyId } },
+      _count: { _all: true },
+    }),
+  ])
+
+  const taskCounts = Object.fromEntries(tasks.map((task) => [task.status, task._count._all]))
+
+  return {
+    agents,
+    projects,
+    tasks: taskCounts,
+  }
 }
