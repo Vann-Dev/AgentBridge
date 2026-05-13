@@ -199,11 +199,16 @@ export async function GET(_request: Request, { params }: RouteContext) {
             ?.map((dependency) => dependency.blockedTask) ?? []
         const doneReviewReadAt = readMarkers[0]?.readAt
 
-        const summaryUpdatedAt = task.summaryUpdatedAt
+        const notePreview = compactText(note)
+        const summaryUpdatedAt = getTaskSummaryUpdatedAt({
+          note,
+          summaryUpdatedAt: task.summaryUpdatedAt,
+          taskUpdatedAt: task.taskUpdatedAt,
+        })
 
         return {
           ...taskCard,
-          notePreview: compactText(note),
+          notePreview,
           summaryUpdatedAt,
           blockingReason: null,
           readCount:
@@ -289,6 +294,16 @@ function compactText(text: string | null) {
   const compact = text.replace(/\s+/g, " ").trim()
 
   return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact
+}
+
+function getTaskSummaryUpdatedAt(task: {
+  note: string | null
+  summaryUpdatedAt: Date | null
+  taskUpdatedAt: Date
+}) {
+  if (!compactText(task.note)) return null
+
+  return task.summaryUpdatedAt ?? task.taskUpdatedAt
 }
 
 export async function DELETE(_request: Request, { params }: RouteContext) {
