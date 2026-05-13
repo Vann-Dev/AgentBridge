@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Status } from "@/generated/prisma/enums"
@@ -25,7 +26,6 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { apiJson } from "@/lib/api/client"
 
-
 type TaskOption = {
   id: string
   name: string
@@ -44,13 +44,22 @@ type CreateTaskDialogProps = {
   projectId: string
 }
 
-export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDialogProps) {
+export function CreateTaskDialog({
+  agents,
+  companyId,
+  projectId,
+}: CreateTaskDialogProps) {
+  const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
-  const projectQuery = useQuery({
-    queryKey: ["project", projectId],
-    queryFn: () => apiJson<{ project: { tasks: TaskOption[] } }>(`/api/internal/projects/${projectId}`),
+  const dependencyOptionsQuery = useQuery({
+    queryKey: ["project-task-dependency-options", projectId],
+    queryFn: () =>
+      apiJson<{ project: { tasks: TaskOption[] } }>(
+        `/api/internal/projects/${projectId}`
+      ),
+    enabled: open,
   })
-  const dependencyOptions = projectQuery.data?.project.tasks ?? []
+  const dependencyOptions = dependencyOptionsQuery.data?.project.tasks ?? []
   const mutation = useMutation({
     mutationFn: (payload: {
       projectId: string
@@ -68,8 +77,14 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
         body: JSON.stringify(payload),
       }),
     onSuccess: () => {
+      setOpen(false)
       queryClient.invalidateQueries({ queryKey: ["project", projectId] })
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
+      queryClient.invalidateQueries({
+        queryKey: ["project-task-dependency-options", projectId],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ["dashboard-summary", companyId],
+      })
       queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
       queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
     },
@@ -90,7 +105,7 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button disabled={!agents.length} type="button">
           New task
@@ -115,7 +130,9 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
           </div>
           <div className="space-y-2">
             <Label>Assigned agent</Label>
-            <p className="text-xs text-muted-foreground">Showing agents linked to this project.</p>
+            <p className="text-xs text-muted-foreground">
+              Showing agents linked to this project.
+            </p>
             <Select name="assignedAgentId" required>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select agent" />
@@ -146,22 +163,52 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
           <div className="space-y-3 rounded-2xl border p-3 text-sm">
             <div>
               <Label>Dependencies</Label>
-              <p className="text-muted-foreground">Select tasks that must be done before this task is ready.</p>
+              <p className="text-muted-foreground">
+                Select tasks that must be done before this task is ready.
+              </p>
             </div>
-            {dependencyOptions.length ? (
+            {dependencyOptionsQuery.isLoading ? (
+              <DependencyOptionsSkeleton />
+            ) : dependencyOptionsQuery.isError ? (
+              <div className="space-y-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive">
+                <p>{dependencyOptionsQuery.error.message}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => dependencyOptionsQuery.refetch()}
+                >
+                  Retry loading dependencies
+                </Button>
+              </div>
+            ) : dependencyOptions.length ? (
               <div className="grid max-h-44 gap-2 overflow-auto pr-1 sm:grid-cols-2">
                 {dependencyOptions.map((task) => (
-                  <label key={task.id} className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2">
-                    <input name="dependencyIds" type="checkbox" value={task.id} className="mt-1 size-4 accent-primary" />
+                  <label
+                    key={task.id}
+                    className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2"
+                  >
+                    <input
+                      name="dependencyIds"
+                      type="checkbox"
+                      value={task.id}
+                      className="mt-1 size-4 accent-primary"
+                    />
                     <span className="min-w-0">
-                      <span className="block truncate font-medium">{task.name}</span>
-                      <span className="block text-xs text-muted-foreground">{task.status}</span>
+                      <span className="block truncate font-medium">
+                        {task.name}
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        {task.status}
+                      </span>
                     </span>
                   </label>
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl bg-muted px-3 py-2 text-muted-foreground">No existing tasks are available.</p>
+              <p className="rounded-xl bg-muted px-3 py-2 text-muted-foreground">
+                No existing tasks are available.
+              </p>
             )}
           </div>
           <div className="space-y-2">
@@ -173,17 +220,24 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
               rows={4}
             />
             <p className="text-xs text-muted-foreground">
-              Optional. Notes appear on task cards and the Notes page for review and handoff.
+              Optional. Notes appear on task cards and the Notes page for review
+              and handoff.
             </p>
           </div>
           <div className="space-y-3 rounded-2xl border p-3 text-sm">
             <div>
               <Label>Read markers for initial status</Label>
-              <p className="text-muted-foreground">Mark only agents who have already reviewed this task in its initial status.</p>
+              <p className="text-muted-foreground">
+                Mark only agents who have already reviewed this task in its
+                initial status.
+              </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               {agents.map((agent) => (
-                <label key={agent.id} className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
+                <label
+                  key={agent.id}
+                  className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2"
+                >
                   <input
                     name="readByAgentIds"
                     type="checkbox"
@@ -192,7 +246,9 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
                   />
                   <span>
                     <span className="font-medium">{agent.name}</span>
-                    <span className="block text-xs text-muted-foreground">{agent.position}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {agent.position}
+                    </span>
                   </span>
                 </label>
               ))}
@@ -207,9 +263,13 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
               rows={3}
             />
           </div>
-          {mutation.error ? <p className="text-sm text-destructive">{mutation.error.message}</p> : null}
+          {mutation.error ? (
+            <p className="text-sm text-destructive">{mutation.error.message}</p>
+          ) : null}
           {!agents.length ? (
-            <p className="text-sm text-muted-foreground">Link project agents before adding tasks.</p>
+            <p className="text-sm text-muted-foreground">
+              Link project agents before adding tasks.
+            </p>
           ) : null}
           <Button disabled={mutation.isPending || !agents.length} type="submit">
             {mutation.isPending ? "Creating..." : "Create task"}
@@ -217,5 +277,21 @@ export function CreateTaskDialog({ agents, companyId, projectId }: CreateTaskDia
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function DependencyOptionsSkeleton() {
+  return (
+    <div
+      className="grid gap-2 sm:grid-cols-2"
+      aria-label="Loading dependency options"
+    >
+      {Array.from({ length: 4 }, (_, index) => (
+        <div key={index} className="space-y-2 rounded-xl bg-muted px-3 py-2">
+          <div className="h-4 w-3/4 animate-pulse rounded bg-background" />
+          <div className="h-3 w-1/3 animate-pulse rounded bg-background" />
+        </div>
+      ))}
+    </div>
   )
 }
