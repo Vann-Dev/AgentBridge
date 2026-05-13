@@ -17,6 +17,7 @@ import {
   SettingsIcon,
 } from "lucide-react"
 
+import { BrandLogo } from "@/components/brand-logo"
 import { Button } from "@/components/ui/button"
 import { ChangePasswordDialog } from "@/components/dashboard/change-password-dialog"
 import { ChangeUsernameDialog } from "@/components/dashboard/change-username-dialog"
@@ -120,12 +121,15 @@ export function DashboardSidebar({
     <aside className="flex min-h-svh w-full flex-col border-r border-border bg-card/95 p-4 md:w-72">
       <Link
         href={dashboardHref(activeCompany?.id ?? null)}
-        className="mb-6 rounded-3xl px-2 py-1 transition hover:bg-muted/70"
+        className="mb-6 flex items-center gap-3 rounded-3xl px-2 py-2 transition hover:bg-muted/70"
       >
-        <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
-          AgentBridge
-        </p>
-        <h1 className="mt-1 text-xl font-semibold">Dashboard</h1>
+        <BrandLogo priority size={52} />
+        <span>
+          <span className="block text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
+            AgentBridge
+          </span>
+          <span className="mt-1 block text-xl font-semibold">Dashboard</span>
+        </span>
       </Link>
 
       <div className="space-y-2">
