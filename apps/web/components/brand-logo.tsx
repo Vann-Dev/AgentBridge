@@ -24,7 +24,7 @@ export function BrandLogo({
       style={{ width: size, height: size }}
     >
       <Image
-        src="/agentbridge-logo.jpg"
+        src="/agentbridge-logo.png"
         alt="AgentBridge logo"
         fill
         className={cn("object-cover", imageClassName)}
