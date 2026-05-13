@@ -15,6 +15,7 @@ export type ProjectTask = {
   id: string
   name: string
   status: Status
+  notePreview: string | null
   summaryUpdatedAt: string | Date | null
   taskUpdatedAt: string | Date
   taskUpdatedById: string | null

@@ -406,7 +406,9 @@ export function TaskKanban({
                           <CardHeader className="space-y-3">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0 space-y-1">
-                                <CardTitle>{task.name}</CardTitle>
+                                <CardTitle className="line-clamp-2 break-words">
+                                  {task.name}
+                                </CardTitle>
                                 <TaskUpdateMeta task={task} />
                               </div>
                               <ReadBadge task={task} agents={agents} />
@@ -430,7 +432,13 @@ export function TaskKanban({
                                 Blocked: {task.blockingReasonPreview}
                               </p>
                             ) : null}
-                            {task.summaryUpdatedAt ? (
+                            {task.notePreview ? (
+                              <TaskCardPreview
+                                label="Done summary"
+                                text={task.notePreview}
+                                tone={task.isUnreadDoneSummary ? "unread" : "default"}
+                              />
+                            ) : task.summaryUpdatedAt ? (
                               <p className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
                                 Done summary available · updated{" "}
                                 {formatRelativeTime(
@@ -765,6 +773,57 @@ function LatencyDiagnostics({
             </code>
           </>
         ) : null}
+      </p>
+    </div>
+  )
+}
+
+function TaskCardPreview({
+  label,
+  text,
+  tone = "default",
+}: {
+  label: string
+  text: string
+  tone?: "default" | "unread"
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const compact = text.length > 120
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl px-3 py-2 text-sm",
+        tone === "unread"
+          ? "border border-primary/30 bg-primary/10 text-primary"
+          : "bg-muted text-muted-foreground"
+      )}
+    >
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 text-left"
+        aria-expanded={expanded}
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          setExpanded((value) => !value)
+        }}
+      >
+        <span className="text-xs tracking-[0.16em] uppercase">{label}</span>
+        <span className="flex shrink-0 items-center gap-1 text-xs">
+          {compact ? (expanded ? "Less" : "More") : "View"}
+          <ChevronDown
+            className={cn("size-4 transition-transform", expanded ? "rotate-180" : "")}
+          />
+        </span>
+      </button>
+      <p
+        className={cn(
+          "mt-2 whitespace-pre-wrap break-words",
+          !expanded ? "line-clamp-2" : ""
+        )}
+      >
+        {text}
       </p>
     </div>
   )
