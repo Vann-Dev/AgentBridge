@@ -1,3 +1,4 @@
+import { invalidateCompanyCache, invalidateProjectCache } from "@/lib/api/cache"
 import { prisma } from "@/lib/prisma"
 
 type AuditActor = {
@@ -40,6 +41,13 @@ export async function createAuditLog({
       details: details ?? null,
     },
   })
+
+  await Promise.all([
+    invalidateCompanyCache(companyId),
+    target.type === "project" && target.id
+      ? invalidateProjectCache(target.id)
+      : Promise.resolve(),
+  ])
 }
 
 export function formatChangedFields(changes: Array<string | false | null | undefined>) {

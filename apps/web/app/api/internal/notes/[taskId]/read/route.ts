@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
+import { invalidateCompanyCache } from "@/lib/api/cache"
 import { notFound, requireInternalSession } from "@/lib/api/internal"
 import { findReviewReader } from "@/lib/api/review-reader"
 import { prisma } from "@/lib/prisma"
@@ -69,6 +70,8 @@ export async function POST(_request: Request, { params }: RouteContext) {
       update: { readAt },
     })
   })
+
+  await invalidateCompanyCache(task.project.companyId)
 
   return NextResponse.json({
     statusCode: 200,

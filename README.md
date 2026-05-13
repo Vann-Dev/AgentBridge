@@ -390,6 +390,22 @@ See [docs/production-runbook.md](docs/production-runbook.md) for the full deploy
 
 Do not commit `.env`, real bearer tokens, database credentials, `.next`, `node_modules`, or generated local logs.
 
+## Optional Redis API response cache
+
+AgentBridge can use Upstash Redis over HTTP to cache safe dashboard read APIs with
+short TTLs. The cache is optional: when these variables are unset, reads fall
+back to direct database queries with unchanged response shapes.
+
+```bash
+UPSTASH_REDIS_REST_URL="https://...upstash.io"
+UPSTASH_REDIS_REST_TOKEN="..."
+```
+
+Cache keys include user/company/project identifiers and version counters; raw
+bearer tokens, auth cookies, database URLs, and other secrets are never stored in
+keys. Task/project/agent/audit mutations bump company/project versions so cached
+summary, brief, notes, agents, and project board responses refresh quickly.
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow, checks, API/UI conventions, and AgentBridge coordination rules.

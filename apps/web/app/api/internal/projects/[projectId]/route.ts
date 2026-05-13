@@ -3,6 +3,15 @@ import { NextResponse } from "next/server"
 import { Status } from "@/generated/prisma/enums"
 import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
 import {
+  cacheJson,
+  cacheKey,
+  cacheStatusHeader,
+  cacheTtl,
+  getCompanyCacheVersion,
+  getProjectCacheVersion,
+  invalidateProjectAndCompanyCache,
+} from "@/lib/api/cache"
+import {
   projectAgentSelect,
   serializeProjectAgents,
 } from "@/lib/api/project-agents"
@@ -30,7 +39,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   const { projectId } = await params
   const projectQueryTiming = startServerTiming("ab-project-shell", "project shell")
-  const project = await prisma.project.findFirst({
+  const projectShell = await prisma.project.findFirst({
     where: {
       id: projectId,
       company: { userId: session.userId },
@@ -64,179 +73,211 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   const projectTiming = formatServerTimingMetric(projectQueryTiming)
 
-  if (!project) {
+  if (!projectShell) {
     return notFound("Project not found.")
   }
 
-  const tasksTiming = startServerTiming("ab-project-tasks", "task cards")
-  const tasks = await prisma.task.findMany({
-    where: { projectId: project.id, archivedAt: null },
-    orderBy: { name: "asc" },
-    select: {
-      id: true,
-      name: true,
-      note: true,
-      summaryUpdatedAt: true,
-      taskUpdatedAt: true,
-      taskUpdatedById: true,
-      taskUpdatedByName: true,
-      taskUpdatedByType: true,
-      status: true,
-      blockingReason: true,
-      readMarkers: {
-        where: { status: Status.done, agent: { AgentId: "main" } },
-        select: { readAt: true },
-      },
-      assigned: {
+  const companyVersion = await getCompanyCacheVersion(projectShell.companyId)
+  const projectVersion = await getProjectCacheVersion(projectShell.id)
+  const cacheResult = await cacheJson(
+    cacheKey([
+      "internal",
+      "project-detail",
+      session.userId,
+      projectShell.companyId,
+      projectShell.id,
+      companyVersion,
+      projectVersion,
+    ]),
+    cacheTtl.projectDetail,
+    async () => {
+      const project = projectShell
+      const tasksTiming = startServerTiming("ab-project-tasks", "task cards")
+      const tasks = await prisma.task.findMany({
+        where: { projectId: project.id, archivedAt: null },
+        orderBy: { name: "asc" },
         select: {
           id: true,
           name: true,
-          position: true,
+          note: true,
+          summaryUpdatedAt: true,
+          taskUpdatedAt: true,
+          taskUpdatedById: true,
+          taskUpdatedByName: true,
+          taskUpdatedByType: true,
+          status: true,
+          blockingReason: true,
+          readMarkers: {
+            where: { status: Status.done, agent: { AgentId: "main" } },
+            select: { readAt: true },
+          },
+          assigned: {
+            select: {
+              id: true,
+              name: true,
+              position: true,
+            },
+          },
         },
-      },
-    },
-  })
-  const taskIds = tasks.map((task) => task.id)
-  const tasksHeaderTiming = formatServerTimingMetric(tasksTiming)
+      })
+      const taskIds = tasks.map((task) => task.id)
+      const tasksHeaderTiming = formatServerTimingMetric(tasksTiming)
 
-  const metadataTiming = startServerTiming("ab-project-task-meta", "read/dependency meta")
-  const [readCounts, dependencyEdges] = taskIds.length
-    ? await Promise.all([
-        prisma.taskReadMarker.groupBy({
-          by: ["taskId", "status"],
-          where: { taskId: { in: taskIds } },
-          _count: { _all: true },
-        }),
-        prisma.taskDependency.findMany({
-          where: {
-            OR: [
-              { blockedTaskId: { in: taskIds } },
-              { dependencyTaskId: { in: taskIds } },
-            ],
-          },
-          orderBy: { createdAt: "asc" },
-          select: {
-            blockedTaskId: true,
-            dependencyTaskId: true,
-            blockedTask: {
-              select: {
-                id: true,
-                name: true,
-                status: true,
-                archivedAt: true,
+      const metadataTiming = startServerTiming(
+        "ab-project-task-meta",
+        "read/dependency meta"
+      )
+      const [readCounts, dependencyEdges] = taskIds.length
+        ? await Promise.all([
+            prisma.taskReadMarker.groupBy({
+              by: ["taskId", "status"],
+              where: { taskId: { in: taskIds } },
+              _count: { _all: true },
+            }),
+            prisma.taskDependency.findMany({
+              where: {
+                OR: [
+                  { blockedTaskId: { in: taskIds } },
+                  { dependencyTaskId: { in: taskIds } },
+                ],
               },
-            },
-            dependencyTask: {
+              orderBy: { createdAt: "asc" },
               select: {
-                id: true,
-                name: true,
-                status: true,
-                archivedAt: true,
+                blockedTaskId: true,
+                dependencyTaskId: true,
+                blockedTask: {
+                  select: {
+                    id: true,
+                    name: true,
+                    status: true,
+                    archivedAt: true,
+                  },
+                },
+                dependencyTask: {
+                  select: {
+                    id: true,
+                    name: true,
+                    status: true,
+                    archivedAt: true,
+                  },
+                },
               },
-            },
-          },
-        }),
-      ])
-    : [[], []]
-  const metadataHeaderTiming = formatServerTimingMetric(metadataTiming)
+            }),
+          ])
+        : [[], []]
+      const metadataHeaderTiming = formatServerTimingMetric(metadataTiming)
 
-  const readCountByTaskStatus = new Map<string, number>()
-  for (const readCount of readCounts) {
-    readCountByTaskStatus.set(
-      `${readCount.taskId}:${readCount.status}`,
-      readCount._count._all
-    )
-  }
-
-  const dependenciesByTask = new Map<
-    string,
-    Array<{
-      dependencyTask: {
-        id: string
-        name: string
-        status: (typeof tasks)[number]["status"]
+      const readCountByTaskStatus = new Map<string, number>()
+      for (const readCount of readCounts) {
+        readCountByTaskStatus.set(
+          `${readCount.taskId}:${readCount.status}`,
+          readCount._count._all
+        )
       }
-    }>
-  >()
-  const unblocksByTask = new Map<
-    string,
-    Array<{
-      blockedTask: {
-        id: string
-        name: string
-        status: (typeof tasks)[number]["status"]
-      }
-    }>
-  >()
-  for (const edge of dependencyEdges) {
-    if (edge.blockedTask.archivedAt || edge.dependencyTask.archivedAt) continue
 
-    const blockedByDependencies =
-      dependenciesByTask.get(edge.blockedTaskId) ?? []
-    blockedByDependencies.push({ dependencyTask: edge.dependencyTask })
-    dependenciesByTask.set(edge.blockedTaskId, blockedByDependencies)
-
-    const unblocksDependencies = unblocksByTask.get(edge.dependencyTaskId) ?? []
-    unblocksDependencies.push({ blockedTask: edge.blockedTask })
-    unblocksByTask.set(edge.dependencyTaskId, unblocksDependencies)
-  }
-
-  const jsonResponse = NextResponse.json({
-    statusCode: 200,
-    project: {
-      ...project,
-      projectAgents: serializeProjectAgents(project.agents),
-      agents: undefined,
-      tasks: tasks.map((task) => {
-        const { note, readMarkers, ...taskCard } = task
-        const dependencies =
-          dependenciesByTask
-            .get(task.id)
-            ?.map((dependency) => dependency.dependencyTask) ?? []
-        const unblocks =
-          unblocksByTask
-            .get(task.id)
-            ?.map((dependency) => dependency.blockedTask) ?? []
-        const doneReviewReadAt = readMarkers[0]?.readAt
-
-        const notePreview = compactText(note)
-        const summaryUpdatedAt = getTaskSummaryUpdatedAt({
-          note,
-          summaryUpdatedAt: task.summaryUpdatedAt,
-          taskUpdatedAt: task.taskUpdatedAt,
-        })
-
-        return {
-          ...taskCard,
-          notePreview,
-          summaryUpdatedAt,
-          blockingReason: null,
-          readCount:
-            readCountByTaskStatus.get(`${task.id}:${task.status}`) ?? 0,
-          blockingReasonPreview: compactText(task.blockingReason),
-          dependencies: dependencies.slice(0, 3),
-          dependencyIds: dependencies.map((dependency) => dependency.id),
-          dependencyCount: dependencies.length,
-          unblocks: unblocks.slice(0, 3),
-          unblocksCount: unblocks.length,
-          isDependencyReady:
-            dependencies.length > 0 &&
-            dependencies.every(
-              (dependency) => dependency.status === Status.done
-            ),
-          isUnreadDoneSummary:
-            task.status === Status.done &&
-            Boolean(summaryUpdatedAt) &&
-            (!doneReviewReadAt ||
-              new Date(doneReviewReadAt) < new Date(summaryUpdatedAt ?? 0)),
+      const dependenciesByTask = new Map<
+        string,
+        Array<{
+          dependencyTask: {
+            id: string
+            name: string
+            status: (typeof tasks)[number]["status"]
+          }
+        }>
+      >()
+      const unblocksByTask = new Map<
+        string,
+        Array<{
+          blockedTask: {
+            id: string
+            name: string
+            status: (typeof tasks)[number]["status"]
+          }
+        }>
+      >()
+      for (const edge of dependencyEdges) {
+        if (edge.blockedTask.archivedAt || edge.dependencyTask.archivedAt) {
+          continue
         }
-      }),
+
+        const blockedByDependencies =
+          dependenciesByTask.get(edge.blockedTaskId) ?? []
+        blockedByDependencies.push({ dependencyTask: edge.dependencyTask })
+        dependenciesByTask.set(edge.blockedTaskId, blockedByDependencies)
+
+        const unblocksDependencies =
+          unblocksByTask.get(edge.dependencyTaskId) ?? []
+        unblocksDependencies.push({ blockedTask: edge.blockedTask })
+        unblocksByTask.set(edge.dependencyTaskId, unblocksDependencies)
+      }
+
+      return {
+        body: {
+          statusCode: 200,
+          project: {
+            ...project,
+            projectAgents: serializeProjectAgents(project.agents),
+            agents: undefined,
+            tasks: tasks.map((task) => {
+              const { note, readMarkers, ...taskCard } = task
+              const dependencies =
+                dependenciesByTask
+                  .get(task.id)
+                  ?.map((dependency) => dependency.dependencyTask) ?? []
+              const unblocks =
+                unblocksByTask
+                  .get(task.id)
+                  ?.map((dependency) => dependency.blockedTask) ?? []
+              const doneReviewReadAt = readMarkers[0]?.readAt
+
+              const notePreview = compactText(note)
+              const summaryUpdatedAt = getTaskSummaryUpdatedAt({
+                note,
+                summaryUpdatedAt: task.summaryUpdatedAt,
+                taskUpdatedAt: task.taskUpdatedAt,
+              })
+
+              return {
+                ...taskCard,
+                notePreview,
+                summaryUpdatedAt,
+                blockingReason: null,
+                readCount:
+                  readCountByTaskStatus.get(`${task.id}:${task.status}`) ?? 0,
+                blockingReasonPreview: compactText(task.blockingReason),
+                dependencies: dependencies.slice(0, 3),
+                dependencyIds: dependencies.map((dependency) => dependency.id),
+                dependencyCount: dependencies.length,
+                unblocks: unblocks.slice(0, 3),
+                unblocksCount: unblocks.length,
+                isDependencyReady:
+                  dependencies.length > 0 &&
+                  dependencies.every(
+                    (dependency) => dependency.status === Status.done
+                  ),
+                isUnreadDoneSummary:
+                  task.status === Status.done &&
+                  Boolean(summaryUpdatedAt) &&
+                  (!doneReviewReadAt ||
+                    new Date(doneReviewReadAt) <
+                      new Date(summaryUpdatedAt ?? 0)),
+              }
+            }),
+          },
+        },
+        timings: [tasksHeaderTiming, metadataHeaderTiming],
+      }
+    }
+  )
+
+  const jsonResponse = NextResponse.json(cacheResult.value.body, {
+    headers: {
+      "X-AgentBridge-Cache": cacheStatusHeader(cacheResult.cacheStatus),
     },
   })
   appendServerTiming(jsonResponse.headers, [
     projectTiming,
-    tasksHeaderTiming,
-    metadataHeaderTiming,
+    ...cacheResult.value.timings,
     totalTiming,
   ])
 
@@ -283,6 +324,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     details: formatChangedFields([
       project.name !== updatedProject.name && "name",
     ]),
+  })
+  await invalidateProjectAndCompanyCache({
+    companyId: project.companyId,
+    projectId: project.id,
   })
 
   return NextResponse.json({ statusCode: 200, project: updatedProject })
@@ -332,6 +377,10 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     target: { type: "project", id: project.id, name: project.name },
     actor: { type: "user", id: session.userId, name: session.username },
     details: "Project deleted.",
+  })
+  await invalidateProjectAndCompanyCache({
+    companyId: project.companyId,
+    projectId: project.id,
   })
 
   return NextResponse.json({ statusCode: 200, projectId: project.id })
