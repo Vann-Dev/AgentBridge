@@ -14,16 +14,19 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { apiJson } from "@/lib/api/client"
+import { changePasswordAction } from "@/app/dashboard/settings/actions"
 
 export function ChangePasswordDialog() {
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const mutation = useMutation({
     mutationFn: (payload: { currentPassword: string; newPassword: string }) =>
-      apiJson<{ statusCode: 200 }>("/api/internal/account/password", {
-        method: "PUT",
-        body: JSON.stringify(payload),
+      changePasswordAction(payload).then((result) => {
+        if (!result.ok) {
+          throw new Error(result.error)
+        }
+
+        return result
       }),
     onSuccess: () => {
       setMessage("Password changed.")

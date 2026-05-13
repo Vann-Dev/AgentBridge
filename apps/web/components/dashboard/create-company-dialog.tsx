@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { apiJson } from "@/lib/api/client"
+import { createCompanyAction } from "./actions"
 
 type CreateCompanyDialogProps = {
   defaultOpen?: boolean
@@ -36,9 +36,12 @@ export function CreateCompanyDialog({
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: (payload: { name: string; description: string }) =>
-      apiJson<{ company: { id: string }; token: string }>("/api/internal/companies", {
-        method: "POST",
-        body: JSON.stringify(payload),
+      createCompanyAction(payload).then((result) => {
+        if (!result.ok) {
+          throw new Error(result.error)
+        }
+
+        return result
       }),
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["companies"] })

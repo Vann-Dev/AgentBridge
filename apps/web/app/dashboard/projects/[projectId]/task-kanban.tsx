@@ -43,9 +43,16 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { apiJson } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
+import {
+  archiveDoneTasksAction,
+  deleteTaskAction,
+  getProjectDetailAction,
+  getTaskDetailAction,
+  updateTaskAction,
+  updateTaskStatusAction,
+} from "./actions"
 import type { ProjectTask, ProjectTaskDetail, RequestDiagnostics } from "./types"
 
 type TaskCard = ProjectTask
@@ -79,29 +86,38 @@ type TaskKanbanProps = {
   tasks: TaskCard[]
 }
 
-async function timedApiJson<T>(
-  input: RequestInfo | URL,
-  label: string
-): Promise<T & { diagnostics?: RequestDiagnostics }> {
-  const startedAt = performance.now()
-  const response = await fetch(input, {
-    headers: { "Content-Type": "application/json" },
-  })
-  const data = (await response.json().catch(() => null)) as T & {
-    error?: string
-  }
-  const diagnostics: RequestDiagnostics = {
-    label,
-    clientDurationMs: Math.round(performance.now() - startedAt),
-    serverTiming: response.headers.get("Server-Timing"),
+async function runProjectDetailAction(projectId: string): Promise<ProjectQueryData> {
+  const result = await getProjectDetailAction(projectId)
+
+  if (!result.ok) {
+    throw new Error(result.error)
   }
 
-  if (!response.ok) {
-    throw new Error(data?.error ?? "Request failed")
-  }
-
-  return { ...data, diagnostics }
+  return { project: { tasks: result.project.tasks } }
 }
+
+async function runTaskDetailAction(taskId: string): Promise<TaskDetailQueryData> {
+  const result = await getTaskDetailAction(taskId)
+
+  if (!result.ok) {
+    throw new Error(result.error)
+  }
+
+  return { task: result.task }
+}
+
+async function unwrapActionResult<T>(
+  action: Promise<({ ok: true } & T) | { ok: false; error: string }>
+): Promise<T> {
+  const result = await action
+
+  if (!result.ok) {
+    throw new Error(result.error)
+  }
+
+  return result as T
+}
+
 
 const columns = [
   { key: Status.todo, label: "Todo" },
@@ -125,19 +141,12 @@ export function TaskKanban({
   const queryClient = useQueryClient()
   const projectQuery = useQuery({
     queryKey: ["project", projectId],
-    queryFn: () =>
-      timedApiJson<ProjectQueryData>(
-        `/api/internal/projects/${projectId}`,
-        "project board"
-      ),
+    queryFn: () => runProjectDetailAction(projectId),
     initialData: { project: { tasks } },
   })
   const statusMutation = useMutation({
     mutationFn: ({ taskId, status }: { taskId: string; status: Status }) =>
-      apiJson(`/api/internal/tasks/${taskId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      }),
+      unwrapActionResult(updateTaskStatusAction(taskId, status)),
     onMutate: async ({ taskId, status }) => {
       await queryClient.cancelQueries({ queryKey: ["project", projectId] })
       const previous = queryClient.getQueryData<ProjectQueryData>([
@@ -202,11 +211,7 @@ export function TaskKanban({
         readByAgentIds: string[]
         blockingReason: string
       }
-    }) =>
-      apiJson(`/api/internal/tasks/${taskId}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      }),
+    }) => unwrapActionResult(updateTaskAction(taskId, payload)),
     onSuccess: () => {
       setEditingTask(null)
       setEditingStatus(null)
@@ -214,13 +219,7 @@ export function TaskKanban({
     },
   })
   const archiveDoneMutation = useMutation({
-    mutationFn: () =>
-      apiJson<{ archivedCount: number }>(
-        `/api/internal/projects/${projectId}/archive-done`,
-        {
-          method: "POST",
-        }
-      ),
+    mutationFn: () => unwrapActionResult(archiveDoneTasksAction(projectId)),
     onSuccess: (data) => {
       setConfirmArchiveDone(false)
       setArchiveSuccess(
@@ -238,9 +237,7 @@ export function TaskKanban({
   })
   const deleteMutation = useMutation({
     mutationFn: (taskId: string) =>
-      apiJson(`/api/internal/tasks/${taskId}`, {
-        method: "DELETE",
-      }),
+      unwrapActionResult(deleteTaskAction(taskId)),
     onSuccess: () => {
       setDeletingTask(null)
       queryClient.invalidateQueries({ queryKey: ["project", projectId] })
@@ -258,11 +255,7 @@ export function TaskKanban({
   ).length
   const editingTaskQuery = useQuery({
     queryKey: ["task", editingTask?.id],
-    queryFn: () =>
-      timedApiJson<TaskDetailQueryData>(
-        `/api/internal/tasks/${editingTask?.id}`,
-        "task detail"
-      ),
+    queryFn: () => runTaskDetailAction(editingTask?.id ?? ""),
     enabled: Boolean(editingTask),
   })
   const editableTask = editingTaskQuery.data?.task ?? editingTask
@@ -833,11 +826,7 @@ function TaskDetails({ task }: { task: TaskCard }) {
   const [expanded, setExpanded] = useState(false)
   const detailQuery = useQuery({
     queryKey: ["task", task.id],
-    queryFn: () =>
-      timedApiJson<TaskDetailQueryData>(
-        `/api/internal/tasks/${task.id}`,
-        "task detail"
-      ),
+    queryFn: () => runTaskDetailAction(task.id),
     enabled: expanded,
   })
   const detail = detailQuery.data?.task

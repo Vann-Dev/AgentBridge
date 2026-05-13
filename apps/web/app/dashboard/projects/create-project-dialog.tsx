@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useState, useTransition } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -14,39 +14,42 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { apiJson } from "@/lib/api/client"
+
+import { createProjectAction } from "./actions"
 
 
 type CreateProjectDialogProps = {
   companyId: string | null
+  onCreated?: (project: { id: string; name: string; description: string }) => void
 }
 
-export function CreateProjectDialog({ companyId }: CreateProjectDialogProps) {
-  const queryClient = useQueryClient()
-  const mutation = useMutation({
-    mutationFn: (payload: { companyId: string; name: string; description: string }) =>
-      apiJson("/api/internal/projects", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
-    },
-  })
+export function CreateProjectDialog({
+  companyId,
+  onCreated,
+}: CreateProjectDialogProps) {
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
 
   function action(formData: FormData) {
     if (!companyId) return
 
-    mutation.mutate({
-      companyId,
-      name: String(formData.get("name") ?? ""),
-      description: String(formData.get("description") ?? ""),
+    setError(null)
+    startTransition(async () => {
+      const result = await createProjectAction(formData)
+
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+
+      onCreated?.(result.project)
+      setOpen(false)
     })
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button disabled={!companyId} type="button">
           New project
@@ -69,9 +72,9 @@ export function CreateProjectDialog({ companyId }: CreateProjectDialogProps) {
             <Label htmlFor="project-description">Description</Label>
             <Textarea id="project-description" name="description" rows={4} />
           </div>
-          {mutation.error ? <p className="text-sm text-destructive">{mutation.error.message}</p> : null}
-          <Button disabled={mutation.isPending || !companyId} type="submit">
-            {mutation.isPending ? "Creating..." : "Create project"}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <Button disabled={isPending || !companyId} type="submit">
+            {isPending ? "Creating..." : "Create project"}
           </Button>
         </form>
       </DialogContent>

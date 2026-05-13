@@ -1,21 +1,26 @@
-import { NextResponse } from "next/server"
+"use server"
+
+import { revalidatePath } from "next/cache"
 
 import { Status } from "@/generated/prisma/enums"
 import { invalidateCompanyCache } from "@/lib/api/cache"
-import { notFound, requireInternalSession } from "@/lib/api/internal"
 import { findReviewReader } from "@/lib/api/review-reader"
+import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
-type RouteContext = {
-  params: Promise<{ taskId: string }>
-}
+type MarkNoteReadResult =
+  | { ok: true; taskId: string; readBy: string }
+  | { ok: false; error: string }
 
-export async function POST(_request: Request, { params }: RouteContext) {
-  const { session, response } = await requireInternalSession()
+export async function markDoneTaskSummaryReadAction(
+  taskId: string
+): Promise<MarkNoteReadResult> {
+  const session = await getSession()
 
-  if (response) return response
+  if (!session) {
+    return { ok: false, error: "Unauthorized" }
+  }
 
-  const { taskId } = await params
   const task = await prisma.task.findFirst({
     where: {
       id: taskId,
@@ -26,7 +31,6 @@ export async function POST(_request: Request, { params }: RouteContext) {
     },
     select: {
       id: true,
-      note: true,
       summaryUpdatedAt: true,
       taskUpdatedAt: true,
       project: { select: { companyId: true } },
@@ -34,13 +38,13 @@ export async function POST(_request: Request, { params }: RouteContext) {
   })
 
   if (!task) {
-    return notFound("Done task note not found.")
+    return { ok: false, error: "Done task note not found." }
   }
 
   const reviewReader = await findReviewReader(task.project.companyId)
 
   if (!reviewReader) {
-    return notFound("Review reader agent not found.")
+    return { ok: false, error: "Review reader agent not found." }
   }
 
   const readAt = new Date()
@@ -72,10 +76,8 @@ export async function POST(_request: Request, { params }: RouteContext) {
   })
 
   await invalidateCompanyCache(task.project.companyId)
+  revalidatePath("/dashboard/notes")
+  revalidatePath(`/dashboard/projects/${task.project.companyId}`)
 
-  return NextResponse.json({
-    statusCode: 200,
-    taskId: task.id,
-    readBy: reviewReader.AgentId,
-  })
+  return { ok: true, taskId: task.id, readBy: reviewReader.AgentId }
 }

@@ -1,15 +1,14 @@
-import { NextRequest, NextResponse } from "next/server"
+"use server"
 
 import { Status } from "@/generated/prisma/enums"
 import {
   cacheJson,
   cacheKey,
-  cacheStatusHeader,
   cacheTtl,
   getCompanyCacheVersion,
   getProjectCacheVersion,
 } from "@/lib/api/cache"
-import { badRequest, requireInternalSession } from "@/lib/api/internal"
+import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 const briefRanges = ["today", "7d"] as const
@@ -17,22 +16,31 @@ const sectionLimit = 10
 
 type BriefRangeKey = (typeof briefRanges)[number]
 
-export async function GET(request: NextRequest) {
-  const { session, response } = await requireInternalSession()
+type ActionResult<T> = ({ ok: true } & T) | { ok: false; error: string }
 
-  if (response) return response
+export async function getBriefAction({
+  companyId,
+  projectId,
+  range,
+}: {
+  companyId: string
+  projectId?: string | null
+  range: string
+}): Promise<ActionResult<{ brief: BriefData }>> {
+  const session = await getSession()
 
-  const startedAt = Date.now()
-  const companyId = request.nextUrl.searchParams.get("companyId")
-  const rangeParam = request.nextUrl.searchParams.get("range") ?? "today"
-  const projectId = request.nextUrl.searchParams.get("projectId")
+  if (!session) {
+    return { ok: false, error: "Unauthorized" }
+  }
+
+  const rangeParam = range || "today"
 
   if (!companyId) {
-    return badRequest("Company is required.")
+    return { ok: false, error: "Company is required." }
   }
 
   if (!isBriefRange(rangeParam)) {
-    return badRequest("Range must be today or 7d.")
+    return { ok: false, error: "Range must be today or 7d." }
   }
 
   const company = await prisma.company.findFirst({
@@ -41,7 +49,7 @@ export async function GET(request: NextRequest) {
   })
 
   if (!company) {
-    return badRequest("Company not found.")
+    return { ok: false, error: "Company not found." }
   }
 
   const projectFilter = projectId
@@ -52,14 +60,14 @@ export async function GET(request: NextRequest) {
     : null
 
   if (projectId && !projectFilter) {
-    return badRequest("Project not found.")
+    return { ok: false, error: "Project not found." }
   }
 
   const companyVersion = await getCompanyCacheVersion(company.id)
   const projectVersion = projectId
     ? await getProjectCacheVersion(projectId)
     : "none"
-  const { value, cacheStatus } = await cacheJson(
+  const { value } = await cacheJson(
     cacheKey([
       "internal",
       "dashboard-brief",
@@ -241,7 +249,7 @@ export async function GET(request: NextRequest) {
           targetType: log.targetType,
           targetId: log.targetId,
           companyId: company.id,
-          projectId,
+          projectId: projectId ?? null,
         }),
       })),
       ...changedTasks.map((task) => ({
@@ -276,19 +284,61 @@ export async function GET(request: NextRequest) {
     }),
   }
 
-      return { statusCode: 200, brief }
+      return { brief }
     }
   )
 
-  const jsonResponse = NextResponse.json(value, {
-    headers: { "X-AgentBridge-Cache": cacheStatusHeader(cacheStatus) },
-  })
-  jsonResponse.headers.set(
-    "Server-Timing",
-    `dashboard-brief;dur=${Date.now() - startedAt}`
-  )
 
-  return jsonResponse
+
+  return { ok: true, brief: value.brief }
+}
+
+type BriefTask = {
+  id: string
+  name: string
+  status: string
+  summary: string | null
+  summaryUpdatedAt: string | null
+  blockingReason: string | null
+  taskUpdatedAt: string
+  assigned: { id: string; name: string }
+  project: { id: string; name: string }
+  href: string
+}
+
+type BriefActivity = {
+  id: string
+  kind: string
+  title: string
+  subtitle: string | null
+  actorName: string
+  actorType: string
+  occurredAt: string
+  href: string
+}
+
+type BriefData = {
+  range: { key: BriefRangeKey; label: string; since: string; until: string }
+  project: { id: string; name: string } | null
+  projects: Array<{ id: string; name: string }>
+  counts: {
+    changed: number
+    completed: number
+    blockers: number
+    notes: number
+    readyForReview: number
+  }
+  recentActivity: BriefActivity[]
+  completedTasks: BriefTask[]
+  blockers: BriefTask[]
+  latestNotes: BriefTask[]
+  readyForReview: Array<BriefTask & { reason: string }>
+  suggestedActions: Array<{
+    label: string
+    reason: string
+    href: string
+    priority: "high" | "medium" | "low"
+  }>
 }
 
 function isBriefRange(value: string): value is BriefRangeKey {

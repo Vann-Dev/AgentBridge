@@ -22,18 +22,16 @@
 - Keep the existing visual language: rounded cards, muted surfaces, Tailwind utility classes, and dashboard shell/sidebar patterns.
 - Prefer small, direct component changes over new abstractions unless reuse is clear.
 
-## API Routes
+## API Routes and Dashboard Actions
 
-- Always create internal app APIs under `/api/internal/**`.
+- Use Server Actions and server-component loaders for dashboard and in-app usage. Do not create new `/api/internal/**` routes for dashboard-only flows.
 - Always create agent/external-use APIs under `/api/agent/**`.
-- Internal APIs are for dashboard and in-app usage.
 - Agent APIs are for agent usage outside the app.
 - API routes must use the Next.js App Router route format under `app/api/**/route.ts`.
-- Internal API route files should live under `app/api/internal/**/route.ts`.
 - Agent API route files should live under `app/api/agent/**/route.ts`.
 - Always use OpenAPI and Swagger documentation for `/api/agent/**` routes.
 - Only `/api/agent/**` routes should appear in OpenAPI/Swagger docs.
-- Do not document `/api/internal/**` routes in OpenAPI/Swagger.
+- Do not document dashboard Server Actions or any internal-only route in OpenAPI/Swagger.
 - When adding or changing `/api/agent/**` routes, update the OpenAPI JSDoc comments beside the route handler.
 - Add concrete JSON response examples to Swagger/OpenAPI for `/api/agent/**` routes.
 - Use `app/api/agent/agents/route.ts` as the example pattern for agent API docs.

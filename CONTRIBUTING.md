@@ -58,7 +58,7 @@ corepack pnpm prisma:studio
 
 ## API conventions
 
-- Dashboard-only APIs belong under `/api/internal/**`.
+- Dashboard-only reads and mutations should use Server Actions or server-component loaders. Do not add new `/api/internal/**` routes for dashboard-only flows.
 - External agent APIs belong under `/api/agent/**`.
 - Agent API requests must use the company bearer token and an `AgentId` header.
 - Never log, print, or expose bearer tokens.

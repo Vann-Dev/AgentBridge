@@ -1,6 +1,7 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useActionState, useEffect, useRef } from "react"
+import { useFormStatus } from "react-dom"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -22,8 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { apiJson } from "@/lib/api/client"
 
+import { createAgentAction } from "./actions"
 import { AgentRowActions } from "./agent-row-actions"
 
 type AgentRow = {
@@ -35,49 +36,19 @@ type AgentRow = {
 }
 
 type AgentsTableProps = {
+  agents: AgentRow[]
   companyId: string | null
 }
 
-export function AgentsTable({ companyId }: AgentsTableProps) {
-  const queryClient = useQueryClient()
-  const agentsQuery = useQuery({
-    queryKey: ["agents", companyId],
-    queryFn: () =>
-      apiJson<{ agents: AgentRow[] }>(`/api/internal/agents?companyId=${companyId}`),
-    enabled: Boolean(companyId),
-  })
-  const createMutation = useMutation({
-    mutationFn: (payload: {
-      companyId: string
-      AgentId: string
-      name: string
-      description: string
-      position: string
-    }) =>
-      apiJson<{ agent: AgentRow }>("/api/internal/agents", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["project"] })
-    },
-  })
+export function AgentsTable({ agents, companyId }: AgentsTableProps) {
+  const formRef = useRef<HTMLFormElement>(null)
+  const [state, formAction] = useActionState(createAgentAction, {})
 
-  function action(formData: FormData) {
-    if (!companyId) return
-
-    createMutation.mutate({
-      companyId,
-      AgentId: String(formData.get("AgentId") ?? ""),
-      name: String(formData.get("name") ?? ""),
-      description: String(formData.get("description") ?? ""),
-      position: String(formData.get("position") ?? ""),
-    })
-  }
-  const currentAgents = agentsQuery.data?.agents ?? []
+  useEffect(() => {
+    if (!state.error) {
+      formRef.current?.reset()
+    }
+  }, [state])
 
   return (
     <div className="space-y-5">
@@ -101,7 +72,7 @@ export function AgentsTable({ companyId }: AgentsTableProps) {
                 The company bearer token is shared. Enter the AgentId this agent will send in the AgentId header.
               </DialogDescription>
             </DialogHeader>
-            <form action={action} className="space-y-4">
+            <form ref={formRef} action={formAction} className="space-y-4">
               <input name="companyId" type="hidden" value={companyId ?? ""} />
               <div className="space-y-2">
                 <Label htmlFor="agent-agent-id">AgentId</Label>
@@ -119,25 +90,12 @@ export function AgentsTable({ companyId }: AgentsTableProps) {
                 <Label htmlFor="agent-description">Description</Label>
                 <Textarea id="agent-description" name="description" rows={4} />
               </div>
-              {createMutation.error ? (
-                <p className="text-sm text-destructive">{createMutation.error.message}</p>
-              ) : null}
-              <Button disabled={createMutation.isPending || !companyId} type="submit">
-                {createMutation.isPending ? "Creating..." : "Create agent"}
-              </Button>
+              {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+              <CreateAgentButton disabled={!companyId} />
             </form>
           </DialogContent>
         </Dialog>
       </div>
-
-      {agentsQuery.isError ? (
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          <p>{agentsQuery.error.message}</p>
-          <Button className="mt-3" size="sm" variant="outline" onClick={() => agentsQuery.refetch()}>
-            Retry
-          </Button>
-        </div>
-      ) : null}
 
       <div className="overflow-hidden rounded-2xl border border-border">
         <Table>
@@ -151,10 +109,8 @@ export function AgentsTable({ companyId }: AgentsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {agentsQuery.isLoading ? (
-              <AgentRowsSkeleton />
-            ) : currentAgents.length ? (
-              currentAgents.map((agent) => (
+            {agents.length ? (
+              agents.map((agent) => (
                 <TableRow key={agent.id}>
                   <TableCell className="font-medium">{agent.name}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
@@ -163,7 +119,7 @@ export function AgentsTable({ companyId }: AgentsTableProps) {
                   <TableCell className="text-muted-foreground">{agent.position}</TableCell>
                   <TableCell className="text-muted-foreground">{agent.description}</TableCell>
                   <TableCell className="text-right">
-                    <AgentRowActions agent={agent} companyId={companyId} />
+                    <AgentRowActions agent={agent} />
                   </TableCell>
                 </TableRow>
               ))
@@ -181,24 +137,12 @@ export function AgentsTable({ companyId }: AgentsTableProps) {
   )
 }
 
-function AgentRowsSkeleton() {
-  return Array.from({ length: 5 }, (_, index) => (
-    <TableRow key={index} aria-label="Loading agent">
-      <TableCell>
-        <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-      </TableCell>
-      <TableCell>
-        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-      </TableCell>
-      <TableCell>
-        <div className="h-4 w-28 animate-pulse rounded bg-muted" />
-      </TableCell>
-      <TableCell>
-        <div className="h-4 w-48 animate-pulse rounded bg-muted" />
-      </TableCell>
-      <TableCell className="text-right">
-        <div className="ml-auto h-8 w-8 animate-pulse rounded bg-muted" />
-      </TableCell>
-    </TableRow>
-  ))
+function CreateAgentButton({ disabled }: { disabled?: boolean }) {
+  const { pending } = useFormStatus()
+
+  return (
+    <Button disabled={pending || disabled} type="submit">
+      {pending ? "Creating..." : "Create agent"}
+    </Button>
+  )
 }

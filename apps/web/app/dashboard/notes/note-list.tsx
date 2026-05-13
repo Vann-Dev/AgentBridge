@@ -1,9 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
 import { ChevronDown } from "lucide-react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,8 +13,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { apiJson } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
+
+import { markDoneTaskSummaryReadAction } from "./actions"
 
 type NoteTask = {
   id: string
@@ -47,31 +47,11 @@ type NoteListProps = {
 }
 
 export function NoteList({ companyId, reviewReader, initialNotes }: NoteListProps) {
-  const queryClient = useQueryClient()
-  const notesQuery = useQuery({
-    queryKey: ["notes", companyId],
-    queryFn: () =>
-      apiJson<{ notes: NoteTask[]; reviewReader: ReviewReader | null }>(
-        `/api/internal/notes?company=${companyId}`
-      ),
-    initialData: { notes: initialNotes, reviewReader },
-  })
-  const markReadMutation = useMutation({
-    mutationFn: (taskId: string) =>
-      apiJson(`/api/internal/notes/${taskId}/read`, {
-        method: "POST",
-      }),
-    onSuccess: (_data, taskId) => {
-      queryClient.setQueryData<{ notes: NoteTask[] }>(["notes", companyId], (current) =>
-        current
-          ? { notes: current.notes.filter((task) => task.id !== taskId) }
-          : current
-      )
-      queryClient.invalidateQueries({ queryKey: ["project"] })
-    },
-  })
-  const notes = notesQuery.data.notes
-  const currentReviewReader = notesQuery.data.reviewReader ?? reviewReader
+  const [notes, setNotes] = useState(initialNotes)
+  const [error, setError] = useState<string | null>(null)
+  const [pendingTaskId, setPendingTaskId] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+  const currentReviewReader = reviewReader
   const reviewReaderLabel = currentReviewReader
     ? currentReviewReader.AgentId === "main"
       ? "Natsuki/main"
@@ -80,15 +60,12 @@ export function NoteList({ companyId, reviewReader, initialNotes }: NoteListProp
 
   return (
     <div className="space-y-4">
-      {notesQuery.isFetching ? (
-        <p className="text-sm text-muted-foreground">Refreshing notes...</p>
+      {isPending ? (
+        <p className="text-sm text-muted-foreground">Updating review marker...</p>
       ) : null}
-      {notesQuery.error ? (
+      {error ? (
         <div className="space-y-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          <p>{notesQuery.error.message}</p>
-          <Button type="button" variant="outline" size="sm" onClick={() => notesQuery.refetch()}>
-            Retry
-          </Button>
+          <p>{error}</p>
         </div>
       ) : null}
       {!currentReviewReader ? (
@@ -129,10 +106,26 @@ export function NoteList({ companyId, reviewReader, initialNotes }: NoteListProp
                   <Button
                     type="button"
                     size="sm"
-                    disabled={markReadMutation.isPending}
-                    onClick={() => markReadMutation.mutate(task.id)}
+                    disabled={isPending}
+                    onClick={() => {
+                      setError(null)
+                      setPendingTaskId(task.id)
+                      startTransition(async () => {
+                        const result = await markDoneTaskSummaryReadAction(task.id)
+
+                        if (result.ok) {
+                          setNotes((current) =>
+                            current.filter((item) => item.id !== task.id)
+                          )
+                        } else {
+                          setError(result.error)
+                        }
+
+                        setPendingTaskId(null)
+                      })
+                    }}
                   >
-                    {markReadMutation.isPending ? (
+                    {pendingTaskId === task.id ? (
                       "Marking..."
                     ) : (
                       `Mark reviewed by ${reviewReaderLabel}`
@@ -151,9 +144,6 @@ export function NoteList({ companyId, reviewReader, initialNotes }: NoteListProp
           </p>
         </div>
       )}
-      {markReadMutation.error ? (
-        <p className="text-sm text-destructive">{markReadMutation.error.message}</p>
-      ) : null}
     </div>
   )
 }

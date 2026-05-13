@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { apiJson } from "@/lib/api/client"
+import { getBriefAction } from "./actions"
 
 type BriefRange = "today" | "7d"
 type BriefTask = {
@@ -81,16 +81,18 @@ export function BriefClient({ companyId }: { companyId: string }) {
   const [projectId, setProjectId] = useState("all")
   const query = useQuery({
     queryKey: ["dashboard-brief", companyId, range, projectId],
-    queryFn: () => {
-      const params = new URLSearchParams({ companyId, range })
+    queryFn: async () => {
+      const result = await getBriefAction({
+        companyId,
+        range,
+        projectId: projectId === "all" ? null : projectId,
+      })
 
-      if (projectId !== "all") {
-        params.set("projectId", projectId)
+      if (!result.ok) {
+        throw new Error(result.error)
       }
 
-      return apiJson<{ brief: BriefData }>(
-        `/api/internal/dashboard/brief?${params}`
-      )
+      return { brief: result.brief as BriefData }
     },
   })
   const brief = query.data?.brief

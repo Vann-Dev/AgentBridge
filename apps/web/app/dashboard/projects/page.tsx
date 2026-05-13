@@ -3,7 +3,6 @@ import { redirect } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/shell"
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -12,7 +11,6 @@ import {
 import { getDashboardContext } from "@/lib/dashboard/companies"
 import { prisma } from "@/lib/prisma"
 
-import { CreateProjectDialog } from "./create-project-dialog"
 import { ProjectsList } from "./projects-list"
 
 type ProjectsPageProps = {
@@ -53,12 +51,12 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           <CardDescription>
             Track work and task progress for the active company.
           </CardDescription>
-          <CardAction>
-            <CreateProjectDialog companyId={activeCompany.id} />
-          </CardAction>
         </CardHeader>
         <CardContent>
-          <ProjectsList companyId={activeCompany.id} initialProjects={projects} />
+          <ProjectsList
+            companyId={activeCompany.id}
+            initialProjects={projects}
+          />
         </CardContent>
       </Card>
     </DashboardShell>

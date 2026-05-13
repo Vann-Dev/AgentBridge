@@ -46,7 +46,7 @@ export default async function AuditLogsPage({ searchParams }: AuditLogsPageProps
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AuditLogList companyId={activeCompany.id} initialAuditLogs={auditLogs} />
+          <AuditLogList auditLogs={auditLogs} />
         </CardContent>
       </Card>
     </DashboardShell>

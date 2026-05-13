@@ -15,8 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { apiJson } from "@/lib/api/client"
-
+import { updateProjectAgentsAction } from "./actions"
 import type { ProjectAgent } from "./types"
 
 type ProjectAgentsManagerProps = {
@@ -39,9 +38,12 @@ export function ProjectAgentsManager({
   )
   const mutation = useMutation({
     mutationFn: (agentIds: string[]) =>
-      apiJson(`/api/internal/projects/${projectId}/agents`, {
-        method: "PUT",
-        body: JSON.stringify({ agentIds }),
+      updateProjectAgentsAction(projectId, agentIds).then((result) => {
+        if (!result.ok) {
+          throw new Error(result.error)
+        }
+
+        return result
       }),
     onSuccess: () => {
       setOpen(false)

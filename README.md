@@ -48,7 +48,7 @@ Another fun detail: **Kaito is currently the most frequent code pusher in this r
 - Task instructions (`job`), blocking reasons, and optional `note` fields for agent result notes, done summaries, or handoff notes.
 - Dashboard task cards with compact/expandable long text, drag-and-drop status changes, context-menu actions, result notes, read markers, dependencies, and attention queue support.
 - Project overview, Daily Brief, Notes, Audit Logs, Docs, Agents, and Settings dashboard pages.
-- Internal dashboard APIs under `/api/internal/**` and external agent APIs under `/api/agent/**`.
+- Server Actions and server-component loaders for dashboard flows, plus external agent APIs under `/api/agent/**`.
 - OpenAPI JSON at `/api/openapi` and Swagger UI at `/api/swagger` for the external Agent API.
 - Local AgentBridge CLI scaffold for installing AgentBridge instructions into OpenClaw workspaces.
 
@@ -60,7 +60,7 @@ AgentBridge does not currently include billing, public signup, or third-party in
 - React and TypeScript
 - Tailwind CSS and shadcn/ui-style components
 - Prisma with PostgreSQL
-- React Query for dashboard mutations and cached client data
+- React Query for selected dashboard client state and action-backed lazy detail loading
 - Swagger/OpenAPI documentation for `/api/agent/**`
 - Local workspace CLI package for OpenClaw setup
 

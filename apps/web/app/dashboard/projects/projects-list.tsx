@@ -1,8 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useState, useTransition } from "react"
 import { MoreHorizontalIcon } from "lucide-react"
 
 import {
@@ -34,7 +33,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { apiJson } from "@/lib/api/client"
+
+import { CreateProjectDialog } from "./create-project-dialog"
+import { deleteProjectAction, renameProjectAction } from "./actions"
 
 type ProjectRow = {
   id: string
@@ -48,31 +49,43 @@ type ProjectsListProps = {
 }
 
 export function ProjectsList({ companyId, initialProjects }: ProjectsListProps) {
-  const projectsQuery = useQuery({
-    queryKey: ["projects", companyId],
-    queryFn: () =>
-      apiJson<{ projects: ProjectRow[] }>(`/api/internal/projects?companyId=${companyId}`),
-    initialData: { projects: initialProjects },
-  })
-  const projects = projectsQuery.data.projects
+  const [projects, setProjects] = useState(initialProjects)
 
-  if (projectsQuery.isLoading) {
-    return <ProjectsListSkeleton />
+  function handleProjectUpdated(updatedProject: ProjectRow) {
+    setProjects((currentProjects) =>
+      currentProjects
+        .map((project) =>
+          project.id === updatedProject.id ? updatedProject : project
+        )
+        .sort((firstProject, secondProject) =>
+          firstProject.name.localeCompare(secondProject.name)
+        )
+    )
   }
 
-  if (projectsQuery.isError) {
-    return (
-      <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-        <p>{projectsQuery.error.message}</p>
-        <Button className="mt-3" size="sm" variant="outline" onClick={() => projectsQuery.refetch()}>
-          Retry
-        </Button>
-      </div>
+  function handleProjectDeleted(projectId: string) {
+    setProjects((currentProjects) =>
+      currentProjects.filter((project) => project.id !== projectId)
+    )
+  }
+
+  function handleProjectCreated(project: ProjectRow) {
+    setProjects((currentProjects) =>
+      [...currentProjects, project].sort((firstProject, secondProject) =>
+        firstProject.name.localeCompare(secondProject.name)
+      )
     )
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="space-y-5">
+      <div className="flex justify-end">
+        <CreateProjectDialog
+          companyId={companyId}
+          onCreated={handleProjectCreated}
+        />
+      </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {projects.length ? (
         projects.map((project) => (
           <Card key={project.id} className="h-full transition hover:bg-muted/40 hover:ring-foreground/20" size="sm">
@@ -83,7 +96,11 @@ export function ProjectsList({ companyId, initialProjects }: ProjectsListProps) 
                   <CardDescription>{project.description || "No description"}</CardDescription>
                 </CardHeader>
               </Link>
-              <ProjectActions companyId={companyId} project={project} />
+              <ProjectActions
+                project={project}
+                onDeleted={handleProjectDeleted}
+                onUpdated={handleProjectUpdated}
+              />
             </div>
           </Card>
         ))
@@ -92,58 +109,57 @@ export function ProjectsList({ companyId, initialProjects }: ProjectsListProps) 
           No projects yet.
         </p>
       )}
-    </div>
-  )
-}
-
-function ProjectsListSkeleton() {
-  return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Loading projects">
-      {Array.from({ length: 6 }, (_, index) => (
-        <Card key={index} className="h-32 animate-pulse bg-muted" size="sm" />
-      ))}
+      </div>
     </div>
   )
 }
 
 type ProjectActionsProps = {
-  companyId: string
   project: ProjectRow
+  onDeleted: (projectId: string) => void
+  onUpdated: (project: ProjectRow) => void
 }
 
-function ProjectActions({ companyId, project }: ProjectActionsProps) {
+function ProjectActions({
+  project,
+  onDeleted,
+  onUpdated,
+}: ProjectActionsProps) {
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const queryClient = useQueryClient()
-
-  const renameMutation = useMutation({
-    mutationFn: (payload: { name: string }) =>
-      apiJson<{ project: ProjectRow }>(`/api/internal/projects/${project.id}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      setRenameOpen(false)
-      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["project", project.id] })
-    },
-  })
-  const deleteMutation = useMutation({
-    mutationFn: () =>
-      apiJson(`/api/internal/projects/${project.id}`, {
-        method: "DELETE",
-      }),
-    onSuccess: () => {
-      setDeleteOpen(false)
-      queryClient.invalidateQueries({ queryKey: ["projects", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["dashboard-summary", companyId] })
-      queryClient.removeQueries({ queryKey: ["project", project.id] })
-    },
-  })
+  const [renameError, setRenameError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isRenamePending, startRenameTransition] = useTransition()
+  const [isDeletePending, startDeleteTransition] = useTransition()
 
   function renameAction(formData: FormData) {
-    renameMutation.mutate({ name: String(formData.get("name") ?? "") })
+    setRenameError(null)
+    startRenameTransition(async () => {
+      const result = await renameProjectAction(project.id, formData)
+
+      if (!result.ok) {
+        setRenameError(result.error)
+        return
+      }
+
+      onUpdated(result.project)
+      setRenameOpen(false)
+    })
+  }
+
+  function deleteAction() {
+    setDeleteError(null)
+    startDeleteTransition(async () => {
+      const result = await deleteProjectAction(project.id)
+
+      if (!result.ok) {
+        setDeleteError(result.error)
+        return
+      }
+
+      onDeleted(result.projectId)
+      setDeleteOpen(false)
+    })
   }
 
   return (
@@ -178,11 +194,11 @@ function ProjectActions({ companyId, project }: ProjectActionsProps) {
               <Label htmlFor={`project-name-${project.id}`}>Name</Label>
               <Input id={`project-name-${project.id}`} name="name" defaultValue={project.name} required />
             </div>
-            {renameMutation.error ? (
-              <p className="text-sm text-destructive">{renameMutation.error.message}</p>
+            {renameError ? (
+              <p className="text-sm text-destructive">{renameError}</p>
             ) : null}
-            <Button disabled={renameMutation.isPending} type="submit">
-              {renameMutation.isPending ? "Saving..." : "Save name"}
+            <Button disabled={isRenamePending} type="submit">
+              {isRenamePending ? "Saving..." : "Save name"}
             </Button>
           </form>
         </DialogContent>
@@ -196,14 +212,14 @@ function ProjectActions({ companyId, project }: ProjectActionsProps) {
               This removes the project and all of its tasks. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {deleteMutation.error ? (
-            <p className="text-sm text-destructive">{deleteMutation.error.message}</p>
+          {deleteError ? (
+            <p className="text-sm text-destructive">{deleteError}</p>
           ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <form action={() => deleteMutation.mutate()}>
-              <AlertDialogAction disabled={deleteMutation.isPending} variant="destructive" type="submit">
-                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            <form action={deleteAction}>
+              <AlertDialogAction disabled={isDeletePending} variant="destructive" type="submit">
+                {isDeletePending ? "Deleting..." : "Delete"}
               </AlertDialogAction>
             </form>
           </AlertDialogFooter>

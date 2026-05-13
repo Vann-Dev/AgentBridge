@@ -3,8 +3,6 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
-import { Status } from "@/generated/prisma/enums"
-
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -24,13 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { apiJson } from "@/lib/api/client"
-
-type TaskOption = {
-  id: string
-  name: string
-  status: Status
-}
+import { createTaskAction, getProjectDetailAction } from "./actions"
 
 type AgentOption = {
   id: string
@@ -53,10 +45,15 @@ export function CreateTaskDialog({
   const queryClient = useQueryClient()
   const dependencyOptionsQuery = useQuery({
     queryKey: ["project-task-dependency-options", projectId],
-    queryFn: () =>
-      apiJson<{ project: { tasks: TaskOption[] } }>(
-        `/api/internal/projects/${projectId}`
-      ),
+    queryFn: async () => {
+      const result = await getProjectDetailAction(projectId)
+
+      if (!result.ok) {
+        throw new Error(result.error)
+      }
+
+      return { project: { tasks: result.project.tasks } }
+    },
     enabled: open,
   })
   const dependencyOptions = dependencyOptionsQuery.data?.project.tasks ?? []
@@ -72,9 +69,12 @@ export function CreateTaskDialog({
       blockingReason: string
       dependencyIds: string[]
     }) =>
-      apiJson("/api/internal/tasks", {
-        method: "POST",
-        body: JSON.stringify(payload),
+      createTaskAction(payload).then((result) => {
+        if (!result.ok) {
+          throw new Error(result.error)
+        }
+
+        return result
       }),
     onSuccess: () => {
       setOpen(false)
