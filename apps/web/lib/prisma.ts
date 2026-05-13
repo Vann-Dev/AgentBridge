@@ -1,7 +1,17 @@
 import "server-only"
 
+import { config as loadEnv } from "dotenv"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { PrismaClient } from "@/generated/prisma/client"
+
+const workspaceEnvPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../.env",
+)
+
+loadEnv({ path: workspaceEnvPath })
 
 const connectionString = process.env.DATABASE_URL
 
