@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { Status } from "@/generated/prisma/enums"
+import { createAuditLog } from "@/lib/api/audit-log"
 import { notFound, requireInternalSession } from "@/lib/api/internal"
 import { prisma } from "@/lib/prisma"
 
@@ -19,7 +20,7 @@ export async function POST(_request: Request, { params }: RouteContext) {
       id: projectId,
       company: { userId: session.userId },
     },
-    select: { id: true },
+    select: { id: true, companyId: true, name: true },
   })
 
   if (!project) {
@@ -34,6 +35,14 @@ export async function POST(_request: Request, { params }: RouteContext) {
       archivedAt: null,
     },
     data: { archivedAt },
+  })
+
+  await createAuditLog({
+    companyId: project.companyId,
+    action: "project.tasks.archived",
+    target: { type: "project", id: project.id, name: project.name },
+    actor: { type: "user", id: session.userId, name: session.username },
+    details: `Archived ${result.count} done task${result.count === 1 ? "" : "s"}.`,
   })
 
   return NextResponse.json({
