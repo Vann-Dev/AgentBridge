@@ -83,6 +83,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
       taskUpdatedByType: true,
       status: true,
       blockingReason: true,
+      readMarkers: {
+        where: { status: Status.done, agent: { AgentId: "main" } },
+        select: { readAt: true },
+      },
       assigned: {
         select: {
           id: true,
@@ -96,20 +100,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const tasksHeaderTiming = formatServerTimingMetric(tasksTiming)
 
   const metadataTiming = startServerTiming("ab-project-task-meta", "read/dependency meta")
-  const [readCounts, doneReviewReads, dependencyEdges] = taskIds.length
+  const [readCounts, dependencyEdges] = taskIds.length
     ? await Promise.all([
         prisma.taskReadMarker.groupBy({
           by: ["taskId", "status"],
           where: { taskId: { in: taskIds } },
           _count: { _all: true },
-        }),
-        prisma.taskReadMarker.findMany({
-          where: {
-            taskId: { in: taskIds },
-            status: Status.done,
-            agent: { AgentId: "main" },
-          },
-          select: { taskId: true, readAt: true },
         }),
         prisma.taskDependency.findMany({
           where: {
@@ -141,7 +137,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
           },
         }),
       ])
-    : [[], [], []]
+    : [[], []]
   const metadataHeaderTiming = formatServerTimingMetric(metadataTiming)
 
   const readCountByTaskStatus = new Map<string, number>()
@@ -151,10 +147,6 @@ export async function GET(_request: Request, { params }: RouteContext) {
       readCount._count._all
     )
   }
-
-  const doneReviewReadByTask = new Map(
-    doneReviewReads.map((read) => [read.taskId, read.readAt])
-  )
 
   const dependenciesByTask = new Map<
     string,
@@ -196,7 +188,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       projectAgents: serializeProjectAgents(project.agents),
       agents: undefined,
       tasks: tasks.map((task) => {
-        const { note, ...taskCard } = task
+        const { note, readMarkers, ...taskCard } = task
         const dependencies =
           dependenciesByTask
             .get(task.id)
@@ -205,12 +197,18 @@ export async function GET(_request: Request, { params }: RouteContext) {
           unblocksByTask
             .get(task.id)
             ?.map((dependency) => dependency.blockedTask) ?? []
-        const doneReviewReadAt = doneReviewReadByTask.get(task.id)
+        const doneReviewReadAt = readMarkers[0]?.readAt
 
-        const summaryUpdatedAt = task.summaryUpdatedAt ?? (note ? task.taskUpdatedAt : null)
+        const notePreview = compactText(note)
+        const summaryUpdatedAt = getTaskSummaryUpdatedAt({
+          note,
+          summaryUpdatedAt: task.summaryUpdatedAt,
+          taskUpdatedAt: task.taskUpdatedAt,
+        })
 
         return {
           ...taskCard,
+          notePreview,
           summaryUpdatedAt,
           blockingReason: null,
           readCount:
@@ -296,6 +294,16 @@ function compactText(text: string | null) {
   const compact = text.replace(/\s+/g, " ").trim()
 
   return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact
+}
+
+function getTaskSummaryUpdatedAt(task: {
+  note: string | null
+  summaryUpdatedAt: Date | null
+  taskUpdatedAt: Date
+}) {
+  if (!compactText(task.note)) return null
+
+  return task.summaryUpdatedAt ?? task.taskUpdatedAt
 }
 
 export async function DELETE(_request: Request, { params }: RouteContext) {
