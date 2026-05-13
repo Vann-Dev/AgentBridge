@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { Status } from "@/generated/prisma/enums"
 import { agentAuth } from "@/lib/agent-auth"
 import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
+import { getTaskFreshnessUpdate, parseReadByAgentIds } from "@/lib/api/task-freshness"
 import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
 import { agentTaskUpdater } from "@/lib/api/task-updater"
 import { prisma } from "@/lib/prisma"
@@ -352,15 +353,23 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ statusCode: 400, error: "Read marker agent not found" }, { status: 400 })
   }
 
-  const nextStatus = data.status ?? task.status
-  const statusChanged = nextStatus !== task.status
-  const noteChanged = data.note !== undefined && data.note !== task.note
+  const {
+    nextStatus,
+    noteChanged,
+    shouldClearNextStatusReads,
+    summaryUpdatedAt,
+  } = getTaskFreshnessUpdate({
+    currentStatus: task.status,
+    currentNote: task.note,
+    nextStatus: data.status,
+    nextNote: data.note,
+    hasReadBy,
+  })
   if (!noteChanged) {
     delete data.note
   } else {
-    data.summaryUpdatedAt = data.note ? new Date() : null
+    data.summaryUpdatedAt = summaryUpdatedAt
   }
-  const shouldClearNextStatusReads = !hasReadBy && (statusChanged || noteChanged)
   const updatedTask = await prisma.$transaction(async (tx: typeof prisma) => {
     if (hasReadBy) {
       await tx.taskReadMarker.deleteMany({
@@ -460,15 +469,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   })
 
   return NextResponse.json({ statusCode: 200, task: serializeTaskReadMarkers(updatedTask) })
-}
-
-function parseReadByAgentIds(value: unknown) {
-  if (value === undefined) return []
-  if (!Array.isArray(value)) return null
-
-  const agentIds = value.filter((item): item is string => typeof item === "string" && Boolean(item))
-
-  return agentIds.length === value.length ? Array.from(new Set(agentIds)) : null
 }
 
 /**

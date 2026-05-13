@@ -17,6 +17,7 @@
     "prisma:studio": "prisma studio",
     "typecheck": "corepack pnpm prisma:generate && corepack pnpm --filter @agentbridge/web typecheck && corepack pnpm --filter agentbridge typecheck",
     "typecheck:web": "corepack pnpm prisma:generate && corepack pnpm --filter @agentbridge/web typecheck",
+    "test:task-freshness": "tsx --tsconfig apps/web/tsconfig.json --test apps/web/lib/api/task-freshness.test.ts",
     "cli:dev": "corepack pnpm --filter agentbridge dev",
     "cli:build": "corepack pnpm --filter agentbridge build",
     "cli:typecheck": "corepack pnpm --filter agentbridge typecheck",
