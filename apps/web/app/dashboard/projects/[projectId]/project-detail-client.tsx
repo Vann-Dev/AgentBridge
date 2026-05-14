@@ -39,9 +39,10 @@ export function ProjectDetailClient({ initialProject, projectId }: ProjectDetail
   })
   const project = projectQuery.data.project
   const projectDiagnostics = undefined
-  const agents = project.projectAgents
-  const companyAgents = project.company.agents
-  const isLoadingProjectData = projectQuery.isFetching && project.tasks.length === 0
+  const agents = project.projectAgents ?? []
+  const companyAgents = project.company?.agents ?? []
+  const tasks = project.tasks ?? []
+  const isLoadingProjectData = projectQuery.isFetching && tasks.length === 0
 
   return (
     <div className="space-y-6">
@@ -110,7 +111,7 @@ export function ProjectDetailClient({ initialProject, projectId }: ProjectDetail
             agents={agents}
             companyId={project.companyId}
             projectId={project.id}
-            tasks={project.tasks}
+            tasks={tasks}
           />
         )}
       </section>

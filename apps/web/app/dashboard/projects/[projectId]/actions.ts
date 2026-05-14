@@ -574,7 +574,7 @@ async function loadProjectDetail(projectId: string, userId: string) {
   }
 }
 
-async function loadProjectTaskCards(projectId: string) {
+export async function loadProjectTaskCards(projectId: string) {
   const tasks = await prisma.task.findMany({
     where: { projectId, archivedAt: null },
     orderBy: { name: "asc" },
