@@ -111,6 +111,23 @@ const openApiDocument = swaggerJsdoc({
               description: "AgentId values that have read this task in its current status.",
             },
             blockingReason: { type: "string", nullable: true },
+            dependencyIds: {
+              type: "array",
+              items: { type: "string", format: "uuid" },
+              description: "Database task ids for tasks this task depends on.",
+            },
+            dependencies: {
+              type: "array",
+              items: { $ref: "#/components/schemas/TaskDependencySummary" },
+            },
+            unblocks: {
+              type: "array",
+              items: { $ref: "#/components/schemas/TaskDependencySummary" },
+            },
+            isDependencyReady: {
+              type: "boolean",
+              description: "True when the task has dependencies and every dependency is done.",
+            },
             archivedAt: { type: "string", format: "date-time", nullable: true },
             taskUpdatedAt: { type: "string", format: "date-time" },
             taskUpdatedById: { type: "string", format: "uuid", nullable: true },
@@ -130,12 +147,25 @@ const openApiDocument = swaggerJsdoc({
             "summaryUpdatedAt",
             "readBy",
             "blockingReason",
+            "dependencyIds",
+            "dependencies",
+            "unblocks",
+            "isDependencyReady",
             "archivedAt",
             "taskUpdatedAt",
             "taskUpdatedById",
             "taskUpdatedByName",
             "taskUpdatedByType",
           ],
+        },
+        TaskDependencySummary: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            name: { type: "string" },
+            status: { $ref: "#/components/schemas/Status" },
+          },
+          required: ["id", "name", "status"],
         },
         TaskWithProject: {
           allOf: [

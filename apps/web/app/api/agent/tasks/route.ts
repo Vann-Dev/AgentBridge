@@ -111,6 +111,18 @@ export async function GET(request: NextRequest) {
       },
       blockingReason: true,
       archivedAt: true,
+      blockedByDependencies: {
+        select: {
+          dependencyTask: { select: { id: true, name: true, status: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      unblocksDependencies: {
+        select: {
+          blockedTask: { select: { id: true, name: true, status: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
       project: {
         select: {
           id: true,
@@ -162,11 +174,12 @@ export async function GET(request: NextRequest) {
  *               note:
  *                 type: string
  *                 nullable: true
+ *                 description: Result note or done summary. Trimmed; blank values are stored as null and leave summaryUpdatedAt null.
  *               readBy:
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: AgentId values to mark as read for the task's initial status.
+ *                 description: AgentId values to mark as read for the task's initial status. Omit or pass [] unless the task is intentionally already reviewed.
  *               blockingReason:
  *                 type: string
  *                 nullable: true
@@ -332,6 +345,18 @@ export async function POST(request: NextRequest) {
         summaryUpdatedAt: true,
         blockingReason: true,
         archivedAt: true,
+        blockedByDependencies: {
+          select: {
+            dependencyTask: { select: { id: true, name: true, status: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+        unblocksDependencies: {
+          select: {
+            blockedTask: { select: { id: true, name: true, status: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        },
         taskUpdatedAt: true,
         taskUpdatedById: true,
         taskUpdatedByName: true,
