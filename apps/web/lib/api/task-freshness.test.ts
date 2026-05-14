@@ -61,6 +61,20 @@ describe("Agent API task freshness updates", () => {
     assert.equal(result.statusChanged, true)
     assert.equal(result.shouldClearNextStatusReads, false)
   })
+
+  it("treats a blank note as a cleared summary", () => {
+    const result = getTaskFreshnessUpdate({
+      currentStatus: Status.done,
+      currentNote: "old summary",
+      nextNote: null,
+      hasReadBy: false,
+      now: new Date("2026-05-13T13:00:00.000Z"),
+    })
+
+    assert.equal(result.noteChanged, true)
+    assert.equal(result.shouldClearNextStatusReads, true)
+    assert.equal(result.summaryUpdatedAt, null)
+  })
 })
 
 describe("Agent API readBy parsing", () => {
