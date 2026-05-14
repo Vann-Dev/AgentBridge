@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation"
 
 import { DashboardShell } from "@/components/dashboard/shell"
+import { projectAgentSelect, serializeProjectAgents } from "@/lib/api/project-agents"
 import { getDashboardContext } from "@/lib/dashboard/companies"
 import { prisma } from "@/lib/prisma"
 
+import { loadProjectTaskCards } from "./actions"
 import { ProjectDetailClient } from "./project-detail-client"
 
 type ProjectDetailPageProps = {
@@ -42,16 +44,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       },
       agents: {
         orderBy: { agent: { name: "asc" } },
-        select: {
-          agent: {
-            select: {
-              id: true,
-              AgentId: true,
-              name: true,
-              position: true,
-            },
-          },
-        },
+        select: projectAgentSelect,
       },
     },
   })
@@ -61,6 +54,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
   }
 
   const { agents, ...projectData } = project
+  const tasks = await loadProjectTaskCards(project.id)
 
   return (
     <DashboardShell
@@ -72,8 +66,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       <ProjectDetailClient
         initialProject={{
           ...projectData,
-          projectAgents: agents.map(({ agent }) => agent),
-          tasks: [],
+          projectAgents: serializeProjectAgents(agents),
+          tasks,
         }}
         projectId={project.id}
       />
