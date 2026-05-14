@@ -10,6 +10,7 @@ type DashboardShellProps = {
     | "overview"
     | "brief"
     | "agents"
+    | "office"
     | "projects"
     | "notes"
     | "docs"
