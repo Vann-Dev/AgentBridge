@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   BotIcon,
   Building2Icon,
+  BriefcaseBusinessIcon,
   CalendarDaysIcon,
   CheckIcon,
   ChevronsUpDownIcon,
@@ -44,6 +45,7 @@ type DashboardSidebarProps = {
     | "overview"
     | "brief"
     | "agents"
+    | "office"
     | "projects"
     | "notes"
     | "docs"
@@ -82,6 +84,12 @@ export function DashboardSidebar({
       href: dashboardHref(activeCompany?.id ?? null, "/agents"),
       key: "agents",
       icon: BotIcon,
+    },
+    {
+      label: "Office",
+      href: dashboardHref(activeCompany?.id ?? null, "/office"),
+      key: "office",
+      icon: BriefcaseBusinessIcon,
     },
     {
       label: "Projects",
