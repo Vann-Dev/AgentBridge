@@ -13,6 +13,7 @@ import {
   hasDependencyCycle,
   serializeTaskDependencies,
 } from "@/lib/api/task-dependencies"
+import { getTaskFreshnessUpdate } from "@/lib/api/task-freshness"
 import { userTaskUpdater } from "@/lib/api/task-updater"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
@@ -356,11 +357,18 @@ export async function updateTaskAction(
     }
   }
 
-  const nextStatus = (status as Status | undefined) ?? task.status
-  const statusChanged = nextStatus !== task.status
-  const noteChanged = hasNote && (note || null) !== task.note
-  const shouldClearNextStatusReads =
-    !hasReadByAgentIds && (statusChanged || noteChanged)
+  const {
+    nextStatus,
+    noteChanged,
+    shouldClearNextStatusReads,
+    summaryUpdatedAt,
+  } = getTaskFreshnessUpdate({
+    currentStatus: task.status,
+    currentNote: task.note,
+    nextStatus: status as Status | undefined,
+    nextNote: hasNote ? note || null : undefined,
+    hasReadBy: hasReadByAgentIds,
+  })
 
   const updatedTask = await prisma.$transaction(async (tx: typeof prisma) => {
     if (hasReadByAgentIds) {
@@ -417,9 +425,7 @@ export async function updateTaskAction(
         ...(name ? { name } : {}),
         ...(job ? { job } : {}),
         ...(status ? { status: status as Status } : {}),
-        ...(noteChanged
-          ? { note: note || null, summaryUpdatedAt: note ? new Date() : null }
-          : {}),
+        ...(noteChanged ? { note: note || null, summaryUpdatedAt } : {}),
         ...(blockingReason !== undefined
           ? { blockingReason: blockingReason || null }
           : {}),
