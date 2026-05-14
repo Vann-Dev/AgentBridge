@@ -99,6 +99,18 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       },
       blockingReason: true,
       archivedAt: true,
+      blockedByDependencies: {
+        select: {
+          dependencyTask: { select: { id: true, name: true, status: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      unblocksDependencies: {
+        select: {
+          blockedTask: { select: { id: true, name: true, status: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
       project: {
         select: {
           id: true,
@@ -150,11 +162,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *               note:
  *                 type: string
  *                 nullable: true
+ *                 description: Result note or done summary. Trimmed; blank/null clears the summary and summaryUpdatedAt.
  *               readBy:
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: AgentId values to mark as read for the task's resulting status.
+ *                 description: AgentId values to mark as read for the task's resulting status. Omit when changing status or note unless intentionally marking the result already reviewed.
  *               blockingReason:
  *                 type: string
  *                 nullable: true
@@ -439,6 +452,18 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         },
         blockingReason: true,
         archivedAt: true,
+        blockedByDependencies: {
+          select: {
+            dependencyTask: { select: { id: true, name: true, status: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+        unblocksDependencies: {
+          select: {
+            blockedTask: { select: { id: true, name: true, status: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        },
         project: {
           select: {
             id: true,

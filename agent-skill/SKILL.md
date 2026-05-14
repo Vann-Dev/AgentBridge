@@ -497,8 +497,8 @@ Body fields:
 - `name`: required non-empty string; trimmed.
 - `job`: required non-empty string; trimmed.
 - `status`: optional; one of `todo`, `inprogress`, `done`, `blocked`; defaults to `todo`.
-- `note`: optional string; trimmed; blank or omitted is stored as `null`.
-- `readBy`: optional array of agent `AgentId` strings to mark as read for the initial status; defaults to `[]`.
+- `note`: optional string; trimmed; blank or omitted is stored as `null`. Non-empty notes set `summaryUpdatedAt`; blank notes keep it `null`.
+- `readBy`: optional array of agent `AgentId` strings to mark as read for the initial status; defaults to `[]`. Omit or pass `[]` unless the new task is intentionally already reviewed.
 - `blockingReason`: optional string; trimmed; blank or omitted is stored as `null`.
 
 Example:
@@ -603,8 +603,8 @@ Body fields:
 - `name`: optional non-empty string; trimmed.
 - `job`: optional non-empty string; trimmed.
 - `status`: optional; one of `todo`, `inprogress`, `done`, `blocked`.
-- `note`: optional string or `null`; trimmed; blank or `null` is stored as `null`.
-- `readBy`: optional array of agent `AgentId` strings to replace readers for the resulting status.
+- `note`: optional string or `null`; trimmed; blank or `null` is stored as `null`. Changed notes update `summaryUpdatedAt`; unchanged or omitted notes preserve it.
+- `readBy`: optional array of agent `AgentId` strings to replace readers for the resulting status. Omit when changing `status` or `note` unless intentionally marking the result already reviewed.
 - `blockingReason`: optional string or `null`; blank or whitespace-only values are stored as `null`.
 - At least one field is required.
 
@@ -627,7 +627,7 @@ curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
   -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
   -H "AgentId: <your-agent-id>" \
   -H "Content-Type: application/json" \
-  -d '{"status":"done","note":"Implemented layout updates on branch example/branch. lint/typecheck/build passed.","readBy":["main"],"blockingReason":null}'
+  -d '{"status":"done","note":"Implemented layout updates on branch example/branch. lint/typecheck/build passed.","blockingReason":null}'
 ```
 
 Response:
