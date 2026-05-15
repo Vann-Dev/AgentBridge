@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { Status } from "@/generated/prisma/enums"
 import { agentAuth } from "@/lib/agent-auth"
 import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
-import { getTaskFreshnessUpdate, parseReadByAgentIds } from "@/lib/api/task-freshness"
+import { validateAgentTaskPatchInput } from "@/lib/api/agent-task-validation"
+import { getTaskFreshnessUpdate } from "@/lib/api/task-freshness"
 import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
 import { agentTaskUpdater } from "@/lib/api/task-updater"
 import { prisma } from "@/lib/prisma"
 
-const statuses = Object.values(Status)
 
 type RouteContext = {
   params: Promise<{ taskId: string }>
@@ -242,76 +241,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     readBy?: unknown
     blockingReason?: unknown
   }
-  const data: {
-    assignedAgentId?: string
-    name?: string
-    job?: string
-    status?: Status
-    note?: string | null
-    summaryUpdatedAt?: Date | null
-    blockingReason?: string | null
-  } = {}
-  const readBy = parseReadByAgentIds(updates.readBy)
-  const hasReadBy = updates.readBy !== undefined
+  const validation = validateAgentTaskPatchInput(updates)
 
-  if (hasReadBy && !readBy) {
-    return NextResponse.json({ statusCode: 400, error: "Invalid read markers" }, { status: 400 })
+  if (!validation.ok) {
+    return NextResponse.json({ statusCode: 400, error: validation.error }, { status: 400 })
   }
 
-  if (updates.assignedAgentId !== undefined) {
-    if (typeof updates.assignedAgentId !== "string" || !updates.assignedAgentId) {
-      return NextResponse.json({ statusCode: 400, error: "Invalid assigned agent" }, { status: 400 })
-    }
-
-    data.assignedAgentId = updates.assignedAgentId
-  }
-
-  if (updates.name !== undefined) {
-    if (typeof updates.name !== "string" || !updates.name.trim()) {
-      return NextResponse.json(
-        { statusCode: 400, error: "Task name is required" },
-        { status: 400 }
-      )
-    }
-
-    data.name = updates.name.trim()
-  }
-
-  if (updates.job !== undefined) {
-    if (typeof updates.job !== "string" || !updates.job.trim()) {
-      return NextResponse.json({ statusCode: 400, error: "Task job is required" }, { status: 400 })
-    }
-
-    data.job = updates.job.trim()
-  }
-
-  if (updates.status !== undefined) {
-    if (typeof updates.status !== "string" || !statuses.includes(updates.status as Status)) {
-      return NextResponse.json({ statusCode: 400, error: "Invalid task status" }, { status: 400 })
-    }
-
-    data.status = updates.status as Status
-  }
-
-  if (updates.note !== undefined) {
-    if (updates.note !== null && typeof updates.note !== "string") {
-      return NextResponse.json({ statusCode: 400, error: "Invalid task note" }, { status: 400 })
-    }
-
-    data.note = updates.note?.trim() || null
-  }
-
-  if (updates.blockingReason !== undefined) {
-    if (updates.blockingReason !== null && typeof updates.blockingReason !== "string") {
-      return NextResponse.json({ statusCode: 400, error: "Invalid blocking reason" }, { status: 400 })
-    }
-
-    data.blockingReason = updates.blockingReason?.trim() || null
-  }
-
-  if (!Object.keys(data).length && !hasReadBy) {
-    return NextResponse.json({ statusCode: 400, error: "No task updates provided" }, { status: 400 })
-  }
+  const { data, readBy, hasReadBy } = validation
 
   const task = await prisma.task.findFirst({
     where: {

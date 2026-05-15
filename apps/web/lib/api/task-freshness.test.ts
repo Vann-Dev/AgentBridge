@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-
 import { Status } from "@/generated/prisma/enums"
-import { getTaskFreshnessUpdate, parseReadByAgentIds } from "./task-freshness"
+import { validateAgentTaskPatchInput } from "./agent-task-validation"
+import { getTaskFreshnessUpdate } from "./task-freshness"
 
 describe("Agent API task freshness updates", () => {
   it("sets summaryUpdatedAt and clears current-status read markers when the note changes", () => {
@@ -77,14 +77,39 @@ describe("Agent API task freshness updates", () => {
   })
 })
 
-describe("Agent API readBy parsing", () => {
-  it("deduplicates valid AgentIds for replacement reads", () => {
-    assert.deepEqual(parseReadByAgentIds(["main", "main", "kaito"]), ["main", "kaito"])
+describe("Agent API task patch validation", () => {
+  it("trims note summaries and readBy AgentIds for a valid mutation", () => {
+    assert.deepEqual(
+      validateAgentTaskPatchInput({
+        status: Status.done,
+        note: "  shipped summary  ",
+        readBy: ["main", "main", "kaito"],
+      }),
+      {
+        ok: true,
+        data: { status: Status.done, note: "shipped summary" },
+        readBy: ["main", "kaito"],
+        hasReadBy: true,
+      }
+    )
   })
 
-  it("rejects invalid readBy values", () => {
-    assert.equal(parseReadByAgentIds("main"), null)
-    assert.equal(parseReadByAgentIds(["main", ""]), null)
-    assert.equal(parseReadByAgentIds(["main", 42]), null)
+  it("returns stable error strings for invalid task mutations", () => {
+    assert.deepEqual(validateAgentTaskPatchInput({ status: "ready" }), {
+      ok: false,
+      error: "Invalid task status",
+    })
+    assert.deepEqual(validateAgentTaskPatchInput({ note: 42 }), {
+      ok: false,
+      error: "Invalid task note",
+    })
+    assert.deepEqual(validateAgentTaskPatchInput({ readBy: ["main", ""] }), {
+      ok: false,
+      error: "Invalid read markers",
+    })
+    assert.deepEqual(validateAgentTaskPatchInput({}), {
+      ok: false,
+      error: "No task updates provided",
+    })
   })
 })
