@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 
-export const defaultReviewReaderAgentId = "main"
+const defaultReviewReaderAgentId = "main"
 
 export type ReviewReader = {
   id: string
