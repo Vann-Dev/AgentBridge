@@ -131,6 +131,8 @@ Run these checks after migrations and app startup.
 curl -i https://<host>/api/health
 ```
 
+Use the same unauthenticated command for Vercel preview/production URLs, Docker hosts, or local Compose by replacing the host, for example `curl -fsS http://localhost:3000/api/health` after `docker compose up --build`.
+
 Expected ready response:
 
 - HTTP `200`

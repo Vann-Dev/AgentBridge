@@ -28,6 +28,10 @@ const openApiDocument = swaggerJsdoc({
         name: "Tasks",
         description: "Manage tasks in the authenticated agent's company.",
       },
+      {
+        name: "Health",
+        description: "Unauthenticated deployment smoke and readiness checks.",
+      },
     ],
     components: {
       securitySchemes: {
@@ -49,6 +53,24 @@ const openApiDocument = swaggerJsdoc({
             error: { type: "string" },
           },
           required: ["statusCode", "error"],
+        },
+        HealthResponse: {
+          type: "object",
+          description:
+            "Non-secret unauthenticated readiness response for deployment smoke checks. The response never includes bearer tokens, environment values, user/company data, stack traces, or raw database errors.",
+          properties: {
+            statusCode: { type: "integer", enum: [200, 503] },
+            status: { type: "string", enum: ["healthy", "degraded"] },
+            checks: {
+              type: "object",
+              properties: {
+                app: { type: "string", enum: ["ok"] },
+                database: { type: "string", enum: ["ok", "unavailable"] },
+              },
+              required: ["app", "database"],
+            },
+          },
+          required: ["statusCode", "status", "checks"],
         },
         Company: {
           type: "object",
@@ -447,7 +469,11 @@ const openApiDocument = swaggerJsdoc({
     },
     security: [{ bearerAuth: [] }],
   },
-  apis: ["./apps/web/app/api/agent/**/*.ts", "./apps/web/app/api/agent/route.ts"],
+  apis: [
+    "./apps/web/app/api/agent/**/*.ts",
+    "./apps/web/app/api/agent/route.ts",
+    "./apps/web/app/api/health/route.ts",
+  ],
 })
 
 export function GET() {
