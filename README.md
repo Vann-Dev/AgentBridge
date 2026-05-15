@@ -319,7 +319,7 @@ Useful Agent API resources:
 AgentBridge is organized as a pnpm workspace:
 
 - `apps/web/` contains the Next.js dashboard and API routes.
-- `packages/cli/` contains the publishable `agentbridge` CLI package.
+- `packages/cli/` contains the publishable `agentbridge-ai` CLI package.
 - `prisma/` and Prisma scripts stay at the repository root; Prisma client output is generated into `apps/web/generated/prisma`.
 - Root `package.json` scripts orchestrate workspace commands with pnpm filters.
 
