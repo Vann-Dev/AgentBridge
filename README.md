@@ -186,21 +186,23 @@ The repository includes a publish-ready `packages/cli/` workspace package for se
 After the CLI is published to npm, the intended install-free usage is:
 
 ```bash
-npx agentbridge init --every 1h
-npx agentbridge agent setup --agent kaito
-npx agentbridge openclaw doctor --workspace ~/.openclaw
-npx agentbridge openclaw check --workspace ~/.openclaw --agent kaito
-npx agentbridge openclaw status --workspace ~/.openclaw
+npx agentbridge-ai init --every 1h
+npx agentbridge-ai agent setup --agent kaito
+npx agentbridge-ai openclaw doctor --workspace ~/.openclaw
+npx agentbridge-ai openclaw check --workspace ~/.openclaw --agent kaito
+npx agentbridge-ai openclaw status --workspace ~/.openclaw
 ```
+
+The npm package is named `agentbridge-ai`. It may still expose an `agentbridge` binary for compatibility when package metadata includes that bin.
 
 For local development from this repository, use Corepack:
 
 ```bash
-corepack pnpm --filter agentbridge dev -- init --every 1h
-corepack pnpm --filter agentbridge dev -- agent setup --agent kaito
-corepack pnpm --filter agentbridge dev -- openclaw doctor --workspace ~/.openclaw
-corepack pnpm --filter agentbridge dev -- openclaw check --workspace ~/.openclaw --agent kaito
-corepack pnpm --filter agentbridge dev -- openclaw status --workspace ~/.openclaw
+corepack pnpm --filter agentbridge-ai dev -- init --every 1h
+corepack pnpm --filter agentbridge-ai dev -- agent setup --agent kaito
+corepack pnpm --filter agentbridge-ai dev -- openclaw doctor --workspace ~/.openclaw
+corepack pnpm --filter agentbridge-ai dev -- openclaw check --workspace ~/.openclaw --agent kaito
+corepack pnpm --filter agentbridge-ai dev -- openclaw status --workspace ~/.openclaw
 ```
 
 `agentbridge init` is the project/owner setup flow. It detects local OpenClaw agent candidates, fetches company agents from `/api/agent/agents`, confirms which AgentIds should run recurring checks, writes local config/secrets, installs the agent-ops skill, and creates or updates an idempotent OpenClaw cron job per selected agent. The default schedule is hourly (`--every 1h`); override it with `--every 15m`, `--every 1d`, or `--cron "0 9 * * *" --tz Asia/Jakarta`.
