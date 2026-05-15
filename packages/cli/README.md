@@ -5,7 +5,7 @@ OpenClaw-first CLI for installing AgentBridge task coordination into an OpenClaw
 After publish, the intended project setup usage is:
 
 ```bash
-npx agentbridge init --every 1h
+npx agentbridge-ai init --every 1h
 ```
 
 The CLI installs AgentBridge instructions/config for OpenClaw agents and creates or updates OpenClaw cron jobs so agents can check assigned work on a recurring schedule. `agentbridge openclaw init` remains a compatibility alias for project setup.
@@ -26,16 +26,16 @@ agentbridge openclaw status [--workspace <path>]
 From the AgentBridge repository root:
 
 ```bash
-corepack pnpm --filter agentbridge dev -- init --every 1h
-corepack pnpm --filter agentbridge dev -- agent setup --agent kaito
-corepack pnpm --filter agentbridge build
-corepack pnpm --filter agentbridge pack:dry-run
+corepack pnpm --filter agentbridge-ai dev -- init --every 1h
+corepack pnpm --filter agentbridge-ai dev -- agent setup --agent kaito
+corepack pnpm --filter agentbridge-ai build
+corepack pnpm --filter agentbridge-ai pack:dry-run
 ```
 
 Before publish, test the built package locally:
 
 ```bash
-corepack pnpm --filter agentbridge build
+corepack pnpm --filter agentbridge-ai build
 node packages/cli/dist/index.js openclaw status --workspace ~/.openclaw
 ```
 
