@@ -1,0 +1,88 @@
+name: Publish CLI to npm
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, e.g. 0.1.0 or v0.1.0. Defaults to tag/release version.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish agentbridge CLI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/cli
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Enable Corepack
+        run: corepack enable
+        working-directory: .
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          if [[ -n "${{ inputs.version }}" ]]; then
+            RAW_VERSION="${{ inputs.version }}"
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            RAW_VERSION="${{ github.event.release.tag_name }}"
+          else
+            RAW_VERSION="${GITHUB_REF_NAME}"
+          fi
+
+          VERSION="${RAW_VERSION#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid semver tag/version: $RAW_VERSION" >&2
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        working-directory: .
+
+      - name: Apply release version to CLI package
+        run: corepack pnpm version ${{ steps.version.outputs.version }} --no-git-tag-version
+
+      - name: Typecheck CLI
+        run: corepack pnpm typecheck
+
+      - name: Build CLI
+        run: corepack pnpm build
+
+      - name: Verify package contents
+        run: corepack pnpm pack --dry-run
+
+      - name: Publish to npm
+        run: corepack pnpm publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
