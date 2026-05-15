@@ -136,7 +136,7 @@ const openApiDocument = swaggerJsdoc({
               format: "date-time",
               nullable: true,
               description:
-                "Timestamp for the latest stored note/summary change. Null when note is null; unchanged when note is omitted or submitted unchanged; updated when note content changes; cleared when note is blanked.",
+                "Stored timestamp for the latest note/summary content change. Null when note is null or when no summary timestamp has been stored; unchanged when note is omitted or submitted unchanged; updated when note content changes; cleared when note is blanked. Actor auditability comes from taskUpdated* fields and AuditLog entries.",
             },
             readBy: {
               type: "array",
