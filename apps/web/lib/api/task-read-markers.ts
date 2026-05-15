@@ -4,7 +4,6 @@ import { Status } from "@/generated/prisma/enums"
 type TaskSummaryPayload = {
   note?: string | null
   summaryUpdatedAt?: Date | null
-  taskUpdatedAt?: Date
 }
 
 type ReadMarker = {
@@ -23,15 +22,13 @@ export function serializeTaskReadMarkers<
 
   return {
     ...serializedTask,
-    summaryUpdatedAt: getSummaryUpdatedAt(serializedTask),
+    summaryUpdatedAt: getStoredSummaryUpdatedAt(serializedTask),
     readBy: readMarkers
       .filter((marker) => marker.status === task.status)
       .map((marker) => marker.agent.AgentId),
   }
 }
 
-function getSummaryUpdatedAt(task: TaskSummaryPayload) {
-  if (!task.note) return task.summaryUpdatedAt ?? null
-
-  return task.summaryUpdatedAt ?? task.taskUpdatedAt ?? null
+export function getStoredSummaryUpdatedAt(task: TaskSummaryPayload) {
+  return task.note ? (task.summaryUpdatedAt ?? null) : null
 }

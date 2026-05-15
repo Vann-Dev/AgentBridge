@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
  *               note:
  *                 type: string
  *                 nullable: true
- *                 description: Result note or done summary. Trimmed; blank values are stored as null and leave summaryUpdatedAt null.
+ *                 description: Result note or done summary. Trimmed; non-empty values set summaryUpdatedAt and blank values are stored as null with summaryUpdatedAt null.
  *               readBy:
  *                 type: array
  *                 items:

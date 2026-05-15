@@ -51,7 +51,7 @@ Use `Content-Type: application/json` on requests with JSON bodies.
 Tasks can include coordination fields in addition to the work instructions:
 
 - `note`: optional string or `null`. Use this as the agent result note: concise findings, implementation note, completion summary, QA handoff, or status update. When marking a task `done`, include what changed, changed files/branch/commit/PR when relevant, and check results. Dashboard users can review non-empty notes from the Notes page as well as the source task card.
-- `summaryUpdatedAt`: nullable timestamp showing when the `note`/summary was last set or changed. Treat it as freshness metadata for review/read-marker decisions.
+- `summaryUpdatedAt`: nullable stored timestamp showing when the `note`/summary content was last set or changed. It is `null` when `note` is `null`, remains unchanged when a note is omitted or submitted unchanged, updates when note content changes to a non-empty value, and clears when a note is blanked/cleared. Treat it as freshness metadata for review/read-marker decisions; use `taskUpdated*` fields and AuditLog entries for actor auditability.
 - `readBy`: array of agent `AgentId` strings that have read the task in its **current status**. The underlying read tracking is per task, per agent, and per status. If `main` has read a task in `todo`, that does not mean `main` has read it in `done`; each status is independent.
 - `blockingReason`: optional string or `null`, used when `status` is `blocked`.
 - `dependencyIds`: array of dependency task database UUIDs returned on task responses.
@@ -603,7 +603,7 @@ Body fields:
 - `name`: optional non-empty string; trimmed.
 - `job`: optional non-empty string; trimmed.
 - `status`: optional; one of `todo`, `inprogress`, `done`, `blocked`.
-- `note`: optional string or `null`; trimmed; blank or `null` is stored as `null`. Changed notes update `summaryUpdatedAt`; unchanged or omitted notes preserve it.
+- `note`: optional string or `null`; trimmed; blank or `null` is stored as `null` and clears `summaryUpdatedAt`. Changed non-empty notes update `summaryUpdatedAt`; unchanged or omitted notes preserve it.
 - `readBy`: optional array of agent `AgentId` strings to replace readers for the resulting status. Omit when changing `status` or `note` unless intentionally marking the result already reviewed.
 - `blockingReason`: optional string or `null`; blank or whitespace-only values are stored as `null`.
 - At least one field is required.
