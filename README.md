@@ -361,10 +361,16 @@ The app runs on [http://localhost:3000](http://localhost:3000). The container en
 Use the unauthenticated health/readiness endpoint for local smoke checks or container monitoring:
 
 ```bash
-curl http://localhost:3000/api/health
+curl -fsS http://localhost:3000/api/health
 ```
 
-A healthy app returns HTTP `200` with `status: "healthy"` and `checks.database: "ok"`. If the app can respond but the database ping fails, the endpoint returns HTTP `503` with `status: "degraded"` and `checks.database: "unavailable"`. The response intentionally avoids secrets, environment values, user/company data, stack traces, and raw database errors.
+For Vercel or another hosted deployment, replace the host after deploy:
+
+```bash
+curl -i https://<deployment-host>/api/health
+```
+
+A healthy app returns HTTP `200` with `status: "healthy"`, `statusCode: 200`, and `checks.database: "ok"`. If the app can respond but the database ping fails, the endpoint returns HTTP `503` with `status: "degraded"`, `statusCode: 503`, and `checks.database: "unavailable"`. The response intentionally avoids secrets, environment values, user/company data, stack traces, and raw database errors.
 
 Set a real `AUTH_SECRET` for non-local use:
 
