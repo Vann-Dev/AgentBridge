@@ -13,12 +13,12 @@ This runbook covers the minimal production operating path for AgentBridge SaaS d
 
 Set these runtime variables for the web app or container:
 
-| Variable | Required | Notes |
-| --- | --- | --- |
-| `DATABASE_URL` | Yes | PostgreSQL connection string. Include `?schema=public` unless using a different Prisma schema intentionally. Use a production database user with only the privileges the app needs. |
-| `AUTH_SECRET` | Yes | Long random secret for session signing. Keep stable across app restarts; rotating it invalidates existing sessions. |
-| `NEXT_TELEMETRY_DISABLED` | Recommended | Set to `1` in production images and runtime. |
-| `PORT` | Optional | Host-side Compose port. The container listens on `3000`. |
+| Variable                  | Required    | Notes                                                                                                                                                                               |
+| ------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`            | Yes         | PostgreSQL connection string. Include `?schema=public` unless using a different Prisma schema intentionally. Use a production database user with only the privileges the app needs. |
+| `AUTH_SECRET`             | Yes         | Long random secret for session signing. Keep stable across app restarts; rotating it invalidates existing sessions.                                                                 |
+| `NEXT_TELEMETRY_DISABLED` | Recommended | Set to `1` in production images and runtime.                                                                                                                                        |
+| `PORT`                    | Optional    | Host-side Compose port. The container listens on `3000`.                                                                                                                            |
 
 Do not print, commit, or paste real database credentials, company bearer tokens, token hashes, `AUTH_SECRET`, `.env` files, or production logs containing secrets into issues or agent tasks.
 
@@ -190,6 +190,36 @@ Expected response:
 - HTTP `200`
 - JSON `statusCode: 200`
 - `tasks` is an array scoped to the authenticated company and requesting agent.
+
+### 4. Scripted SaaS smoke
+
+For repeatable local, disposable, or production-like validation, run the scripted smoke against an AgentBridge instance that is safe to mutate. The script creates a disposable task in the configured project, lists tasks, marks that task `done`, writes a note summary, and marks it read by the smoke agent.
+
+Required environment:
+
+| Variable                    | Notes                                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `AGENTBRIDGE_BASE_URL`      | Base URL for the instance, for example `http://localhost:3000` or a disposable preview URL.            |
+| `AGENTBRIDGE_COMPANY_TOKEN` | Company bearer token for the target company. Use a test/disposable token and never paste it into logs. |
+| `AGENTBRIDGE_AGENT_ID`      | AgentId that belongs to the target company and project.                                                |
+| `AGENTBRIDGE_PROJECT_ID`    | Project ID where the disposable smoke task can be created and updated.                                 |
+
+```bash
+AGENTBRIDGE_BASE_URL="http://localhost:3000" \
+AGENTBRIDGE_COMPANY_TOKEN="<test-company-token>" \
+AGENTBRIDGE_AGENT_ID="<test-agent-id>" \
+AGENTBRIDGE_PROJECT_ID="<test-project-id>" \
+corepack pnpm smoke:saas-production
+```
+
+Expected result:
+
+- `GET /api/health` returns HTTP `200` and `checks.database: "ok"`.
+- `GET /api/agent` returns the configured agent profile.
+- Agent API task create/list/update all return success.
+- Console output ends with `PASS smoke-saas-production taskId=<created-task-id>`.
+
+Only run this script against production when the configured project is explicitly approved for smoke data. Do not run it with customer data projects unless the resulting disposable task is acceptable and auditable.
 
 ## Log inspection
 
