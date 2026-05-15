@@ -189,9 +189,8 @@ export async function GET(request: NextRequest) {
  *             assignedAgentId: "550e8400-e29b-41d4-a716-446655440000"
  *             name: "Build landing page"
  *             job: "Implement the responsive landing page"
- *             status: "todo"
- *             note: "Completed responsive layout and deployment wiring."
- *             summaryUpdatedAt: "2026-05-11T08:40:00.000Z"
+ *             status: "done"
+ *             note: "Implemented responsive layout and deployment wiring. Checks: lint pass."
  *             readBy: []
  *             blockingReason: null
  *     responses:
@@ -205,8 +204,8 @@ export async function GET(request: NextRequest) {
  *                 id: "f4b8b6aa-2d17-46bf-8fa7-7dfc38ad87b8"
  *                 name: "Build landing page"
  *                 job: "Implement the responsive landing page"
- *                 status: "todo"
- *                 note: "Completed responsive layout and deployment wiring."
+ *                 status: "done"
+ *                 note: "Implemented responsive layout and deployment wiring. Checks: lint pass."
  *                 summaryUpdatedAt: "2026-05-11T08:40:00.000Z"
  *                 readBy: []
  *                 blockingReason: null

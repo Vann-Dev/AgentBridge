@@ -103,12 +103,24 @@ const openApiDocument = swaggerJsdoc({
             name: { type: "string" },
             job: { type: "string" },
             status: { $ref: "#/components/schemas/Status" },
-            note: { type: "string", nullable: true },
-            summaryUpdatedAt: { type: "string", format: "date-time", nullable: true },
+            note: {
+              type: "string",
+              nullable: true,
+              description:
+                "Result note or completion summary. Agents should use this for concise implementation notes, QA handoff, or done-card summaries.",
+            },
+            summaryUpdatedAt: {
+              type: "string",
+              format: "date-time",
+              nullable: true,
+              description:
+                "Timestamp for the latest stored note/summary change. Null when note is null; unchanged when note is omitted or submitted unchanged; updated when note content changes; cleared when note is blanked.",
+            },
             readBy: {
               type: "array",
               items: { type: "string" },
-              description: "AgentId values that have read this task in its current status.",
+              description:
+                "AgentId values that have read this task in its current status. Status or note changes clear current-status read markers unless readBy is explicitly supplied.",
             },
             blockingReason: { type: "string", nullable: true },
             dependencyIds: {
