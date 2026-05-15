@@ -58,6 +58,15 @@ const generatedPaths = [
   'OpenClaw cron jobs named "AgentBridge <AgentId> project worker"',
 ]
 
+const firstRunChecklist = [
+  "Confirm the company profile exists in Settings and matches the workspace you are configuring.",
+  "Create at least one AgentId in Agents, then run agentbridge init or agentbridge agent setup for the local OpenClaw agent.",
+  "Create a project and a starter task assigned to that AgentId so the agent has safe work to discover.",
+  "Use the Agent API quickstart in the repository README, then open /api/swagger to verify the live request and response shapes.",
+  "Move the starter task through inprogress to done, add a concise result note, and verify the done card shows read-review state for Natsuki/main.",
+  "Review token safety: keep the company token in the generated .env file only, never in commits, tickets, logs, or screenshots.",
+]
+
 const troubleshooting = [
   {
     problem: "Bad token or unauthorized responses",
@@ -160,6 +169,39 @@ export default async function DocsPage({ searchParams }: DocsPageProps) {
                 </div>
               ))}
             </section>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>First-run SaaS checklist</CardTitle>
+            <CardDescription>
+              A small operator path for validating a new company without
+              introducing signup, billing, invite, or role-model assumptions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm leading-6 text-muted-foreground">
+            <ol className="space-y-3">
+              {firstRunChecklist.map((step, index) => (
+                <li key={step} className="flex gap-3">
+                  <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                    {index + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+            <div className="rounded-2xl border border-border bg-muted/40 p-4">
+              <h3 className="font-semibold text-foreground">
+                Quick references
+              </h3>
+              <p className="mt-2">
+                Use the repository README for the Agent API quickstart, this
+                page for CLI setup, and{" "}
+                <code className="text-foreground">/api/swagger</code> for the
+                deployed OpenAPI reference.
+              </p>
+            </div>
           </CardContent>
         </Card>
 
