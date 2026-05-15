@@ -1,11 +1,12 @@
 {
-  "name": "agentbridge",
+  "name": "agentbridge-ai",
   "version": "0.1.0",
   "description": "OpenClaw-first AgentBridge CLI for installing heartbeat-based agent task coordination.",
   "private": false,
   "type": "module",
   "bin": {
-    "agentbridge": "dist/index.js"
+    "agentbridge": "dist/index.js",
+    "agentbridge-ai": "dist/index.js"
   },
   "files": [
     "dist",
