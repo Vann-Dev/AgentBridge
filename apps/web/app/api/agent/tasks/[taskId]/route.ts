@@ -162,7 +162,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *               note:
  *                 type: string
  *                 nullable: true
- *                 description: Result note or done summary. Trimmed; blank/null clears the summary and summaryUpdatedAt.
+ *                 description: Result note or done summary. Trimmed; changed notes refresh summaryUpdatedAt, unchanged notes preserve it, and blank/null clears both note and summaryUpdatedAt.
  *               readBy:
  *                 type: array
  *                 items:
@@ -176,9 +176,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *             assignedAgentId: "550e8400-e29b-41d4-a716-446655440000"
  *             name: "Build landing page"
  *             job: "Implement the responsive landing page"
- *             status: "inprogress"
- *             note: "Completed responsive layout and deployment wiring."
- *             summaryUpdatedAt: "2026-05-11T08:40:00.000Z"
+ *             status: "done"
+ *             note: "Implemented responsive layout and deployment wiring. Checks: lint pass."
  *             readBy: []
  *             blockingReason: null
  *     responses:
@@ -192,8 +191,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  *                 id: "f4b8b6aa-2d17-46bf-8fa7-7dfc38ad87b8"
  *                 name: "Build landing page"
  *                 job: "Implement the responsive landing page"
- *                 status: "inprogress"
- *                 note: "Completed responsive layout and deployment wiring."
+ *                 status: "done"
+ *                 note: "Implemented responsive layout and deployment wiring. Checks: lint pass."
  *                 summaryUpdatedAt: "2026-05-11T08:40:00.000Z"
  *                 readBy: []
  *                 blockingReason: null
