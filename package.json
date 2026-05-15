@@ -21,7 +21,8 @@
     "cli:dev": "corepack pnpm --filter agentbridge dev",
     "cli:build": "corepack pnpm --filter agentbridge build",
     "cli:typecheck": "corepack pnpm --filter agentbridge typecheck",
-    "cli:pack": "corepack pnpm --filter agentbridge pack:dry-run"
+    "cli:pack": "corepack pnpm --filter agentbridge pack:dry-run",
+    "smoke:auth-health": "tsx scripts/smoke-auth-health.ts"
   },
   "devDependencies": {
     "@prisma/adapter-pg": "^7.8.0",
