@@ -7,6 +7,8 @@ type DependencyTask = {
   archivedAt?: Date | null
 }
 
+type SerializedDependencyTask = Omit<DependencyTask, "archivedAt">
+
 type DependencyEdge = {
   dependencyTask: DependencyTask
 }
@@ -24,12 +26,12 @@ export function serializeTaskDependencies<T extends TaskDependencyPayload>(task:
   const { blockedByDependencies, unblocksDependencies, ...rest } = task
   const dependencies =
     blockedByDependencies
-      ?.map((dependency) => dependency.dependencyTask)
-      .filter((dependency) => !dependency.archivedAt) ?? []
+      ?.map((dependency) => serializeDependencyTask(dependency.dependencyTask))
+      .filter((dependency): dependency is SerializedDependencyTask => dependency !== null) ?? []
   const unblocks =
     unblocksDependencies
-      ?.map((dependency) => dependency.blockedTask)
-      .filter((dependency) => !dependency.archivedAt) ?? []
+      ?.map((dependency) => serializeDependencyTask(dependency.blockedTask))
+      .filter((dependency): dependency is SerializedDependencyTask => dependency !== null) ?? []
 
   return {
     ...rest,
@@ -37,6 +39,18 @@ export function serializeTaskDependencies<T extends TaskDependencyPayload>(task:
     dependencyIds: dependencies.map((dependency) => dependency.id),
     unblocks,
     isDependencyReady: dependencies.length > 0 && dependencies.every((dependency) => dependency.status === Status.done),
+  }
+}
+
+function serializeDependencyTask(task: DependencyTask): SerializedDependencyTask | null {
+  if (task.archivedAt) {
+    return null
+  }
+
+  return {
+    id: task.id,
+    name: task.name,
+    status: task.status,
   }
 }
 

@@ -44,10 +44,49 @@ describe("Agent API task visibility", () => {
       ],
     })
 
-    assert.deepEqual(result.dependencies, [activeDependency])
+    assert.deepEqual(result.dependencies, [
+      { id: activeDependency.id, name: activeDependency.name, status: activeDependency.status },
+    ])
     assert.deepEqual(result.dependencyIds, [activeDependency.id])
-    assert.deepEqual(result.unblocks, [activeBlockedTask])
+    assert.deepEqual(result.unblocks, [
+      { id: activeBlockedTask.id, name: activeBlockedTask.name, status: activeBlockedTask.status },
+    ])
     assert.equal(result.isDependencyReady, true)
+  })
+
+  it("omits archivedAt from serialized active dependency and unblocks tasks", () => {
+    const result = serializeTaskDependencies({
+      id: "task-1",
+      blockedByDependencies: [
+        {
+          dependencyTask: {
+            id: "dependency-active",
+            name: "Active dependency",
+            status: Status.done,
+            archivedAt: null,
+          },
+        },
+      ],
+      unblocksDependencies: [
+        {
+          blockedTask: {
+            id: "blocked-active",
+            name: "Active blocked task",
+            status: Status.todo,
+            archivedAt: null,
+          },
+        },
+      ],
+    })
+
+    assert.deepEqual(result.dependencies, [
+      { id: "dependency-active", name: "Active dependency", status: Status.done },
+    ])
+    assert.deepEqual(result.unblocks, [
+      { id: "blocked-active", name: "Active blocked task", status: Status.todo },
+    ])
+    assert.equal("archivedAt" in result.dependencies[0], false)
+    assert.equal("archivedAt" in result.unblocks[0], false)
   })
 
   it("does not mark dependency readiness from archived dependencies", () => {
