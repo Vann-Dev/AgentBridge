@@ -1,7 +1,11 @@
 import assert from "node:assert/strict"
 import { fileURLToPath } from "node:url"
 import { describe, it } from "node:test"
-import { createOpenApiDocument } from "./openapi"
+import {
+  createOpenApiDocument,
+  getAgentApiGlobs,
+  getFallbackAgentApiPaths,
+} from "./openapi"
 
 type OpenApiDocument = {
   paths?: Record<string, unknown>
@@ -11,6 +15,16 @@ type OpenApiDocument = {
 }
 
 describe("OpenAPI document", () => {
+  const expectedAgentApiPaths = [
+    "/api/agent",
+    "/api/agent/agents",
+    "/api/agent/agents/{agentId}",
+    "/api/agent/projects",
+    "/api/agent/projects/{projectId}",
+    "/api/agent/tasks",
+    "/api/agent/tasks/{taskId}",
+  ]
+
   it("generates only Agent API paths from the web app working directory", () => {
     const originalCwd = process.cwd()
     process.chdir(fileURLToPath(new URL("../..", import.meta.url)))
@@ -19,15 +33,23 @@ describe("OpenAPI document", () => {
       const document = createOpenApiDocument() as OpenApiDocument
       const paths = Object.keys(document.paths ?? {}).sort()
 
-      assert.deepEqual(paths, [
-      "/api/agent",
-      "/api/agent/agents",
-      "/api/agent/agents/{agentId}",
-      "/api/agent/projects",
-      "/api/agent/projects/{projectId}",
-      "/api/agent/tasks",
-        "/api/agent/tasks/{taskId}",
-      ])
+      assert.deepEqual(paths, expectedAgentApiPaths)
+    } finally {
+      process.chdir(originalCwd)
+    }
+  })
+
+  it("falls back to explicit Agent API paths when route files are unavailable", () => {
+    const originalCwd = process.cwd()
+    process.chdir(fileURLToPath(new URL("..", import.meta.url)))
+
+    try {
+      assert.equal(getAgentApiGlobs().some((glob) => glob.includes("app/api/agent")), true)
+      const document = createOpenApiDocument() as OpenApiDocument
+      const paths = Object.keys(document.paths ?? {}).sort()
+
+      assert.deepEqual(paths, expectedAgentApiPaths)
+      assert.deepEqual(document.paths, getFallbackAgentApiPaths())
     } finally {
       process.chdir(originalCwd)
     }
