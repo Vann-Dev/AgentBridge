@@ -273,13 +273,11 @@ export function ProjectOverview({ diagnostics, project }: ProjectOverviewProps) 
                         {agent.latestDone.name}
                       </p>
                       <p className="mt-1 text-muted-foreground">
-                        Summary updated{" "}
-                        {formatRelativeTime(
-                          new Date(
-                            agent.latestDone.summaryUpdatedAt ??
-                              agent.latestDone.taskUpdatedAt
-                          )
-                        )}
+                        {agent.latestDone.summaryUpdatedAt
+                          ? `Summary updated ${formatRelativeTime(
+                              new Date(agent.latestDone.summaryUpdatedAt)
+                            )}`
+                          : "Summary date unknown"}
                       </p>
                     </div>
                   ) : null}
