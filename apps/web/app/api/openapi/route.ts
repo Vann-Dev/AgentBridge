@@ -148,19 +148,25 @@ const openApiDocument = swaggerJsdoc({
             dependencyIds: {
               type: "array",
               items: { type: "string", format: "uuid" },
-              description: "Database task ids for tasks this task depends on.",
+              description:
+                "Database task ids for active, non-archived tasks this task depends on. Archived dependency tasks are omitted from Agent API task payloads.",
             },
             dependencies: {
               type: "array",
               items: { $ref: "#/components/schemas/TaskDependencySummary" },
+              description:
+                "Active, non-archived dependency task summaries only. Archived dependency tasks are filtered out and dependency summaries expose id, name, and status only.",
             },
             unblocks: {
               type: "array",
               items: { $ref: "#/components/schemas/TaskDependencySummary" },
+              description:
+                "Active, non-archived task summaries that this task unblocks. Archived unblocked tasks are filtered out and summaries expose id, name, and status only.",
             },
             isDependencyReady: {
               type: "boolean",
-              description: "True when the task has dependencies and every dependency is done.",
+              description:
+                "True when the task has at least one active, non-archived dependency and every active dependency is done. Archived dependencies do not affect readiness.",
             },
             archivedAt: { type: "string", format: "date-time", nullable: true },
             taskUpdatedAt: { type: "string", format: "date-time" },
@@ -194,6 +200,9 @@ const openApiDocument = swaggerJsdoc({
         },
         TaskDependencySummary: {
           type: "object",
+          description:
+            "Compact active task summary used by dependencies and unblocks. Archived tasks are omitted before serialization, and archivedAt is intentionally not exposed here.",
+          additionalProperties: false,
           properties: {
             id: { type: "string", format: "uuid" },
             name: { type: "string" },
