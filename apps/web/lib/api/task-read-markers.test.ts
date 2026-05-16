@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { Status } from "@/generated/prisma/enums"
+import { createTaskReadMarkerRows } from "./task-read-marker-writes"
 import { getStoredSummaryUpdatedAt, serializeTaskReadMarkers } from "./task-read-markers"
 
 const markerAgent = { AgentId: "main" }
@@ -39,6 +40,20 @@ describe("Agent API task serialization", () => {
     assert.equal(
       getStoredSummaryUpdatedAt({ note: null, summaryUpdatedAt: staleSummaryTimestamp }),
       null
+    )
+  })
+
+  it("builds task/status-scoped read marker rows for explicit readBy writes", () => {
+    assert.deepEqual(
+      createTaskReadMarkerRows({
+        taskId: "task-1",
+        readAgents: [{ id: "agent-main" }, { id: "agent-kaito" }],
+        status: Status.done,
+      }),
+      [
+        { taskId: "task-1", agentId: "agent-main", status: Status.done },
+        { taskId: "task-1", agentId: "agent-kaito", status: Status.done },
+      ]
     )
   })
 })

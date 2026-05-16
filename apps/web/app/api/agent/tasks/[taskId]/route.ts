@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { agentAuth } from "@/lib/agent-auth"
 import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
 import { validateAgentTaskPatchInput } from "@/lib/api/agent-task-validation"
+import { createTaskReadMarkerRows } from "@/lib/api/task-read-marker-writes"
 import { getTaskFreshnessUpdate } from "@/lib/api/task-freshness"
 import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
 import { agentTaskUpdater } from "@/lib/api/task-updater"
@@ -336,25 +337,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         },
       })
 
-      await Promise.all(
-        readAgents.map((readAgent) =>
-          tx.taskReadMarker.upsert({
-            where: {
-              taskId_agentId_status: {
-                taskId: task.id,
-                agentId: readAgent.id,
-                status: nextStatus,
-              },
-            },
-            create: {
-              taskId: task.id,
-              agentId: readAgent.id,
-              status: nextStatus,
-            },
-            update: { readAt: new Date() },
-          })
-        )
-      )
+      await tx.taskReadMarker.createMany({
+        data: createTaskReadMarkerRows({
+          taskId: task.id,
+          readAgents,
+          status: nextStatus,
+        }),
+        skipDuplicates: true,
+      })
     }
 
     if (shouldClearNextStatusReads) {
