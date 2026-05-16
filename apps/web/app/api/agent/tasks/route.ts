@@ -113,13 +113,13 @@ export async function GET(request: NextRequest) {
       archivedAt: true,
       blockedByDependencies: {
         select: {
-          dependencyTask: { select: { id: true, name: true, status: true } },
+          dependencyTask: { select: { id: true, name: true, status: true, archivedAt: true } },
         },
         orderBy: { createdAt: "asc" },
       },
       unblocksDependencies: {
         select: {
-          blockedTask: { select: { id: true, name: true, status: true } },
+          blockedTask: { select: { id: true, name: true, status: true, archivedAt: true } },
         },
         orderBy: { createdAt: "asc" },
       },
@@ -346,13 +346,13 @@ export async function POST(request: NextRequest) {
         archivedAt: true,
         blockedByDependencies: {
           select: {
-            dependencyTask: { select: { id: true, name: true, status: true } },
+            dependencyTask: { select: { id: true, name: true, status: true, archivedAt: true } },
           },
           orderBy: { createdAt: "asc" },
         },
         unblocksDependencies: {
           select: {
-            blockedTask: { select: { id: true, name: true, status: true } },
+            blockedTask: { select: { id: true, name: true, status: true, archivedAt: true } },
           },
           orderBy: { createdAt: "asc" },
         },
