@@ -38,6 +38,7 @@ export function CompanySettingsForm({ company }: CompanySettingsFormProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle")
   const updateMutation = useMutation({
     mutationFn: (payload: { name: string; description: string }) =>
       updateCompanyAction(company.id, payload).then((result) => {
@@ -76,7 +77,36 @@ export function CompanySettingsForm({ company }: CompanySettingsFormProps) {
 
         return result
       }),
+    onSuccess: () => {
+      setCopyStatus("idle")
+    },
   })
+
+  async function copyToken(token: string) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(token)
+      } else {
+        const textArea = document.createElement("textarea")
+        textArea.value = token
+        textArea.setAttribute("readonly", "")
+        textArea.style.position = "fixed"
+        textArea.style.opacity = "0"
+        document.body.appendChild(textArea)
+        textArea.select()
+        const copied = document.execCommand("copy")
+        document.body.removeChild(textArea)
+
+        if (!copied) {
+          throw new Error("Copy command failed")
+        }
+      }
+
+      setCopyStatus("copied")
+    } catch {
+      setCopyStatus("error")
+    }
+  }
 
   function updateCompany(formData: FormData) {
     updateMutation.mutate({
@@ -130,10 +160,33 @@ export function CompanySettingsForm({ company }: CompanySettingsFormProps) {
         </p>
         {tokenMutation.data?.token ? (
           <div className="mt-4 rounded-2xl border border-border bg-muted p-3">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              New company bearer token · copy now
-            </p>
-            <p className="mt-2 break-all font-mono text-xs">{tokenMutation.data.token}</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  New company bearer token · copy now
+                </p>
+                <p className="mt-2 break-all font-mono text-xs">{tokenMutation.data.token}</p>
+              </div>
+              <Button
+                className="shrink-0"
+                size="sm"
+                type="button"
+                variant="secondary"
+                onClick={() => copyToken(tokenMutation.data.token)}
+              >
+                {copyStatus === "copied" ? "Copied" : "Copy token"}
+              </Button>
+            </div>
+            {copyStatus === "copied" ? (
+              <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                Token copied to clipboard.
+              </p>
+            ) : null}
+            {copyStatus === "error" ? (
+              <p className="mt-2 text-xs font-medium text-destructive">
+                Could not copy automatically. Select and copy the token manually.
+              </p>
+            ) : null}
             <p className="mt-2 text-xs text-muted-foreground">
               This token cannot be viewed again. Update `.openclaw/agentbridge/.env` or any other
               external agent configuration that uses the old token.
