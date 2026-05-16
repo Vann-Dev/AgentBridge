@@ -275,7 +275,7 @@ function getAgentState(
     return "ready"
   }
 
-  if (recentDoneTask && isWithinDays(recentDoneTask.summaryUpdatedAt ?? recentDoneTask.taskUpdatedAt, 3)) {
+  if (recentDoneTask?.summaryUpdatedAt && isWithinDays(recentDoneTask.summaryUpdatedAt, 3)) {
     return "recentlyDone"
   }
 

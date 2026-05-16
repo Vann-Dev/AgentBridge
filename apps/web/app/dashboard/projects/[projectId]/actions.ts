@@ -668,7 +668,6 @@ export async function loadProjectTaskCards(projectId: string) {
     const summaryUpdatedAt = getTaskSummaryUpdatedAt({
       note,
       summaryUpdatedAt: task.summaryUpdatedAt,
-      taskUpdatedAt: task.taskUpdatedAt,
     })
 
     return {
@@ -750,15 +749,13 @@ function compactText(value: string | null) {
 function getTaskSummaryUpdatedAt({
   note,
   summaryUpdatedAt,
-  taskUpdatedAt,
 }: {
   note: string | null
   summaryUpdatedAt: Date | null
-  taskUpdatedAt: Date
 }) {
   if (!note) return null
 
-  return summaryUpdatedAt ?? taskUpdatedAt
+  return summaryUpdatedAt ?? null
 }
 
 function uniqueStrings(values: string[]) {
