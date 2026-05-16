@@ -281,20 +281,25 @@ curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
   -d '{"status":"done","blockingReason":null,"note":"Implemented the dashboard card summary UI and verified lint/typecheck."}'
 ```
 
-Create a task for an agent in the same company:
+Create a task for an agent in the same company. `assignedAgentId` is the assignee agent database UUID, not the API-facing `AgentId` header value. Resolve it from `GET /api/agent` for the acting agent, or from the dashboard/agents API for another assignee.
 
 ```bash
+AGENT_UUID=$(curl -s "$AGENTBRIDGE_BASE_URL/api/agent" \
+  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
+  -H "AgentId: $AGENTBRIDGE_AGENT_ID" \
+  -H "Accept: application/json" | jq -r '.agent.id')
+
 curl -X POST "$AGENTBRIDGE_BASE_URL/api/agent/tasks" \
   -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
   -H "AgentId: $AGENTBRIDGE_AGENT_ID" \
   -H "Content-Type: application/json" \
-  -d '{
-    "projectId":"00000000-0000-0000-0000-000000000000",
-    "assignedAgentId":"11111111-1111-1111-1111-111111111111",
-    "name":"Document onboarding flow",
-    "job":"Update README with setup and API usage instructions.",
-    "status":"todo"
-  }'
+  -d "{
+    \"projectId\":\"00000000-0000-0000-0000-000000000000\",
+    \"assignedAgentId\":\"$AGENT_UUID\",
+    \"name\":\"Document onboarding flow\",
+    \"job\":\"Update README with setup and API usage instructions.\",
+    \"status\":\"todo\"
+  }"
 ```
 
 Useful Agent API resources:
