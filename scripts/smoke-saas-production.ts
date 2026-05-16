@@ -93,16 +93,16 @@ async function main() {
 
   const agentResult = await requestJson(config, "/api/agent")
   assertStatus(agentResult.response, agentResult.body, 200, "agent profile")
-  assert.equal(
-    (agentResult.body.agent as JsonRecord | undefined)?.AgentId,
-    config.agentId
-  )
+  const agentProfile = agentResult.body.agent as JsonRecord | undefined
+  assert.equal(agentProfile?.AgentId, config.agentId)
+  assert.equal(typeof agentProfile?.id, "string")
+  const assignedAgentId = agentProfile.id
 
   const createResult = await requestJson(config, "/api/agent/tasks", {
     method: "POST",
     body: JSON.stringify({
       projectId: config.projectId,
-      assignedAgentId: config.agentId,
+      assignedAgentId,
       name: taskName,
       job: "Disposable task created by the scripted SaaS production smoke check.",
       status: "todo",

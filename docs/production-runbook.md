@@ -193,7 +193,7 @@ Expected response:
 
 ### 4. Scripted SaaS smoke
 
-For repeatable local, disposable, or production-like validation, run the scripted smoke against an AgentBridge instance that is safe to mutate. The script creates a disposable task in the configured project, lists tasks, marks that task `done`, writes a note summary, and marks it read by the smoke agent.
+For repeatable local, disposable, or production-like validation, run the scripted smoke against an AgentBridge instance that is safe to mutate. The script resolves the authenticated agent profile from `/api/agent`, uses that profile `id` as the task `assignedAgentId` UUID, creates a disposable task in the configured project, lists tasks, marks that task `done`, writes a note summary, and marks it read by the smoke agent.
 
 Required environment:
 
@@ -201,7 +201,7 @@ Required environment:
 | --------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `AGENTBRIDGE_BASE_URL`      | Base URL for the instance, for example `http://localhost:3000` or a disposable preview URL.            |
 | `AGENTBRIDGE_COMPANY_TOKEN` | Company bearer token for the target company. Use a test/disposable token and never paste it into logs. |
-| `AGENTBRIDGE_AGENT_ID`      | AgentId that belongs to the target company and project.                                                |
+| `AGENTBRIDGE_AGENT_ID`      | API-facing AgentId sent in the `AgentId` header. The script resolves its database UUID from `/api/agent` before task creation. |
 | `AGENTBRIDGE_PROJECT_ID`    | Project ID where the disposable smoke task can be created and updated.                                 |
 
 ```bash
@@ -215,7 +215,7 @@ corepack pnpm smoke:saas-production
 Expected result:
 
 - `GET /api/health` returns HTTP `200` and `checks.database: "ok"`.
-- `GET /api/agent` returns the configured agent profile.
+- `GET /api/agent` returns the configured agent profile and provides the database UUID used as `assignedAgentId` for task creation.
 - Agent API task create/list/update all return success.
 - Console output ends with `PASS smoke-saas-production taskId=<created-task-id>`.
 
