@@ -31,8 +31,6 @@ export async function markDoneTaskSummaryReadAction(
     },
     select: {
       id: true,
-      summaryUpdatedAt: true,
-      taskUpdatedAt: true,
       project: { select: { companyId: true } },
     },
   })
@@ -49,30 +47,21 @@ export async function markDoneTaskSummaryReadAction(
 
   const readAt = new Date()
 
-  await prisma.$transaction(async (tx) => {
-    if (!task.summaryUpdatedAt) {
-      await tx.task.update({
-        where: { id: task.id },
-        data: { summaryUpdatedAt: task.taskUpdatedAt },
-      })
-    }
-
-    await tx.taskReadMarker.upsert({
-      where: {
-        taskId_agentId_status: {
-          taskId: task.id,
-          agentId: reviewReader.id,
-          status: Status.done,
-        },
-      },
-      create: {
+  await prisma.taskReadMarker.upsert({
+    where: {
+      taskId_agentId_status: {
         taskId: task.id,
         agentId: reviewReader.id,
         status: Status.done,
-        readAt,
       },
-      update: { readAt },
-    })
+    },
+    create: {
+      taskId: task.id,
+      agentId: reviewReader.id,
+      status: Status.done,
+      readAt,
+    },
+    update: { readAt },
   })
 
   await invalidateCompanyCache(task.project.companyId)

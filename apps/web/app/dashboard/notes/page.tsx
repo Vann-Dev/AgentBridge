@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card"
 import { findReviewReader, getReviewReaderLabel } from "@/lib/api/review-reader"
 import { getDashboardContext } from "@/lib/dashboard/companies"
+import { isDoneSummaryUnread } from "@/lib/dashboard/note-read-state"
 import { prisma } from "@/lib/prisma"
 
 import { NoteList } from "./note-list"
@@ -43,7 +44,6 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
       status: true,
       note: true,
       summaryUpdatedAt: true,
-      taskUpdatedAt: true,
       assigned: {
         select: {
           id: true,
@@ -70,9 +70,7 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
   const unreadNotes = notes.filter((task) => {
     const readAt = task.readMarkers[0]?.readAt
 
-    const summaryUpdatedAt = task.summaryUpdatedAt ?? task.taskUpdatedAt
-
-    return !readAt || readAt < summaryUpdatedAt
+    return isDoneSummaryUnread({ readAt, summaryUpdatedAt: task.summaryUpdatedAt })
   })
 
   return (
@@ -99,7 +97,7 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
               name: task.name,
               status: task.status,
               note: task.note ?? "",
-              summaryUpdatedAt: (task.summaryUpdatedAt ?? task.taskUpdatedAt).toISOString(),
+              summaryUpdatedAt: task.summaryUpdatedAt?.toISOString() ?? null,
               assigned: task.assigned,
               project: task.project,
             }))}
