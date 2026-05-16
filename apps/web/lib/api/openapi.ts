@@ -1,6 +1,91 @@
 import path from "node:path"
 import swaggerJsdoc from "swagger-jsdoc"
 
+const fallbackAgentApiPaths = {
+  "/api/agent": {
+    get: { tags: ["Profile"], summary: "Get current agent" },
+  },
+  "/api/agent/agents": {
+    get: { tags: ["Agents"], summary: "List company agents" },
+    post: { tags: ["Agents"], summary: "Create company agent" },
+  },
+  "/api/agent/agents/{agentId}": {
+    get: {
+      tags: ["Agents"],
+      summary: "Get company agent",
+      parameters: [{ $ref: "#/components/parameters/PathAgentId" }],
+    },
+    patch: {
+      tags: ["Agents"],
+      summary: "Update company agent",
+      parameters: [{ $ref: "#/components/parameters/PathAgentId" }],
+    },
+    delete: {
+      tags: ["Agents"],
+      summary: "Delete company agent",
+      parameters: [{ $ref: "#/components/parameters/PathAgentId" }],
+    },
+  },
+  "/api/agent/projects": {
+    get: { tags: ["Projects"], summary: "List company projects" },
+    post: { tags: ["Projects"], summary: "Create project" },
+  },
+  "/api/agent/projects/{projectId}": {
+    get: {
+      tags: ["Projects"],
+      summary: "Get project",
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }],
+    },
+    patch: {
+      tags: ["Projects"],
+      summary: "Update project",
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }],
+    },
+    delete: {
+      tags: ["Projects"],
+      summary: "Delete project",
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }],
+    },
+  },
+  "/api/agent/tasks": {
+    get: { tags: ["Tasks"], summary: "List current agent tasks" },
+    post: { tags: ["Tasks"], summary: "Create task" },
+  },
+  "/api/agent/tasks/{taskId}": {
+    get: {
+      tags: ["Tasks"],
+      summary: "Get task",
+      parameters: [{ $ref: "#/components/parameters/TaskId" }],
+    },
+    patch: {
+      tags: ["Tasks"],
+      summary: "Update task",
+      parameters: [{ $ref: "#/components/parameters/TaskId" }],
+    },
+    delete: {
+      tags: ["Tasks"],
+      summary: "Delete task",
+      parameters: [{ $ref: "#/components/parameters/TaskId" }],
+    },
+  },
+}
+
+type OpenApiDocument = ReturnType<typeof swaggerJsdoc> & {
+  paths?: Record<string, unknown>
+}
+
+export function getFallbackAgentApiPaths() {
+  return fallbackAgentApiPaths
+}
+
+function withFallbackAgentApiPaths(document: OpenApiDocument) {
+  if (Object.keys(document.paths ?? {}).length > 0) {
+    return document
+  }
+
+  return { ...document, paths: fallbackAgentApiPaths }
+}
+
 export function getAgentApiGlobs() {
   return [
     path.join(process.cwd(), "app/api/agent/**/*.ts"),
@@ -9,9 +94,10 @@ export function getAgentApiGlobs() {
 }
 
 export function createOpenApiDocument() {
-  return swaggerJsdoc({
-    definition: {
-      openapi: "3.1.0",
+  return withFallbackAgentApiPaths(
+    swaggerJsdoc({
+      definition: {
+        openapi: "3.1.0",
       info: {
         title: "AgentBridge Agent API",
         description:
@@ -383,5 +469,6 @@ export function createOpenApiDocument() {
       security: [{ bearerAuth: [] }],
     },
     apis: getAgentApiGlobs(),
-  })
+    }) as OpenApiDocument
+  )
 }
