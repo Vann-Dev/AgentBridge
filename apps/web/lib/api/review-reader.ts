@@ -9,23 +9,11 @@ export type ReviewReader = {
 }
 
 export async function findReviewReader(companyId: string): Promise<ReviewReader | null> {
-  const reader = await prisma.agent.findFirst({
+  return prisma.agent.findFirst({
     where: {
       companyId,
       AgentId: defaultReviewReaderAgentId,
     },
-    select: {
-      id: true,
-      AgentId: true,
-      name: true,
-    },
-  })
-
-  if (reader) return reader
-
-  return prisma.agent.findFirst({
-    where: { companyId },
-    orderBy: { name: "asc" },
     select: {
       id: true,
       AgentId: true,
