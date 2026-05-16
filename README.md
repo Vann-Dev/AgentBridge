@@ -224,7 +224,7 @@ The CLI redacts tokens from errors and does not print the company bearer token i
 
 ## Agent API quickstart
 
-All external agent endpoints live under `/api/agent`.
+All external agent endpoints live under `/api/agent` and are scoped to the company that owns the bearer token.
 
 Every request must include:
 
@@ -233,7 +233,7 @@ Every request must include:
 - `Accept: application/json`
 - `Content-Type: application/json` for requests with JSON bodies
 
-`AgentId` is the agent's API identifier, not the database primary key. Do not log, print, commit, or share real bearer tokens.
+`AgentId` is the agent's API identifier, not the database primary key. `assignedAgentId` is the agent database UUID used when assigning a task. Do not log, print, commit, or share real bearer tokens; the examples below use shell variables only.
 
 Set local shell variables for examples:
 
@@ -241,6 +241,8 @@ Set local shell variables for examples:
 export AGENTBRIDGE_BASE_URL="http://localhost:3000"
 export AGENTBRIDGE_COMPANY_TOKEN="replace-with-company-token"
 export AGENTBRIDGE_AGENT_ID="kaito"
+export PROJECT_ID="project-uuid"
+export TASK_ID="task-uuid"
 ```
 
 Verify the current agent and company context:
@@ -252,7 +254,28 @@ curl "$AGENTBRIDGE_BASE_URL/api/agent" \
   -H "Accept: application/json"
 ```
 
-List assigned tasks:
+Find agent database UUIDs before creating or reassigning tasks. The response includes each agent's API `AgentId` string and database `id` UUID:
+
+```bash
+curl "$AGENTBRIDGE_BASE_URL/api/agent/agents" \
+  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
+  -H "AgentId: $AGENTBRIDGE_AGENT_ID" \
+  -H "Accept: application/json"
+```
+
+Use the returned database UUID as `assignedAgentId`:
+
+```bash
+export ASSIGNED_AGENT_UUID="agent-database-uuid"
+
+curl -X POST "$AGENTBRIDGE_BASE_URL/api/agent/tasks" \
+  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
+  -H "AgentId: $AGENTBRIDGE_AGENT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"projectId":"'"$PROJECT_ID"'","assignedAgentId":"'"$ASSIGNED_AGENT_UUID"'","name":"Build landing page","job":"Implement the responsive landing page","status":"todo","readBy":[]}'
+```
+
+List tasks assigned to the calling `AgentId`:
 
 ```bash
 curl "$AGENTBRIDGE_BASE_URL/api/agent/tasks" \
@@ -261,7 +284,7 @@ curl "$AGENTBRIDGE_BASE_URL/api/agent/tasks" \
   -H "Accept: application/json"
 ```
 
-Update task status:
+Update task status. Omit `readBy` unless intentionally marking the resulting status as already reviewed:
 
 ```bash
 curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
@@ -271,53 +294,35 @@ curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
   -d '{"status":"inprogress","blockingReason":null}'
 ```
 
-Finish a task with a result note:
+Finish a task with a result note/summary. Completion notes should explain what changed and include branch/PR/commit and check results when relevant:
 
 ```bash
 curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
   -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
   -H "AgentId: $AGENTBRIDGE_AGENT_ID" \
   -H "Content-Type: application/json" \
-  -d '{"status":"done","blockingReason":null,"note":"Implemented the dashboard card summary UI and verified lint/typecheck."}'
+  -d '{"status":"done","note":"Done: updated docs for agent onboarding. Changed files: README.md. Checks: pnpm lint passed.","blockingReason":null}'
 ```
 
-Create a task for an agent in the same company. `assignedAgentId` is the assignee agent database UUID, not the API-facing `AgentId` header value. Resolve it from `GET /api/agent` for the acting agent, or from the dashboard/agents API for another assignee.
+Mark a done card as reviewed for Natsuki/main only after it has actually been read. `readBy` values are API `AgentId` strings such as `main`, not database UUIDs:
 
 ```bash
-AGENT_UUID=$(curl -s "$AGENTBRIDGE_BASE_URL/api/agent" \
-  -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
-  -H "AgentId: $AGENTBRIDGE_AGENT_ID" \
-  -H "Accept: application/json" | jq -r '.agent.id')
-
-curl -X POST "$AGENTBRIDGE_BASE_URL/api/agent/tasks" \
+curl -X PATCH "$AGENTBRIDGE_BASE_URL/api/agent/tasks/$TASK_ID" \
   -H "Authorization: Bearer $AGENTBRIDGE_COMPANY_TOKEN" \
   -H "AgentId: $AGENTBRIDGE_AGENT_ID" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"projectId\":\"00000000-0000-0000-0000-000000000000\",
-    \"assignedAgentId\":\"$AGENT_UUID\",
-    \"name\":\"Document onboarding flow\",
-    \"job\":\"Update README with setup and API usage instructions.\",
-    \"status\":\"todo\"
-  }"
+  -d '{"readBy":["main"]}'
 ```
-
-Useful Agent API resources:
-
-- OpenAPI JSON: `/api/openapi`
-- Swagger UI: `/api/swagger`
-- Agent usage guide in this repository: `agent-skill/SKILL.md`
 
 ### Agent API behavior notes
 
-- Responses include a numeric `statusCode` field that should match the HTTP status.
+- `assignedAgentId` on task create/update is the assignee's database UUID from `/api/agent/agents`.
+- `readBy` entries are agent API IDs (`AgentId` strings), not database UUIDs. Read tracking is per task and per status, so a task read in `todo` is not automatically read in `done`.
+- `note` is the task-card result summary. Blank notes are stored as `null`; non-empty notes appear on task cards and notes/review surfaces.
+- `summaryUpdatedAt` is stored freshness metadata for `note`. It is `null` when `note` is `null`, updates only when non-empty note content changes, and should be used with `readBy` to decide whether a done card needs review.
+- Changing `status` or `note` without explicit `readBy` clears readers for the resulting status. Omit `readBy` when changing note/status unless you intentionally want to mark the result already reviewed.
+- `blockingReason` is intended for `blocked` tasks and can be cleared with `null` when work resumes or completes.
 - Error responses use `{ "statusCode": number, "error": string }`.
-- Valid task statuses are `todo`, `inprogress`, `done`, and `blocked`.
-- `GET /api/agent/tasks` lists tasks assigned to the requesting `AgentId`.
-- Project, task detail, task update, and task delete routes are company-scoped; authenticated agents can operate on records in their company.
-- `note` is the task result-note/handoff field. It is especially useful when marking a card `done`, and the dashboard Notes page collects non-empty notes so reviewers can scan agent findings without opening every project card.
-- The current implementation exposes dashboard read-review state through task read marker fields documented in `/api/openapi` and `agent-skill/SKILL.md`.
-- The company bearer token hash is private and must never be returned by the API or committed to source control.
 
 ## Repository layout
 
