@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { Status } from "@/generated/prisma/enums"
 import { agentAuth } from "@/lib/agent-auth"
 import { createAuditLog } from "@/lib/api/audit-log"
+import { createTaskReadMarkerRows } from "@/lib/api/task-read-marker-writes"
 import { serializeTaskReadMarkers } from "@/lib/api/task-read-markers"
 import { agentTaskUpdater } from "@/lib/api/task-updater"
 import { prisma } from "@/lib/prisma"
@@ -325,7 +326,7 @@ export async function POST(request: NextRequest) {
       skipDuplicates: true,
     })
 
-    return tx.task.create({
+    const createdTask = await tx.task.create({
       data: {
         projectId,
         assignedAgentId,
@@ -336,13 +337,23 @@ export async function POST(request: NextRequest) {
         summaryUpdatedAt: note ? new Date() : null,
         blockingReason: blockingReason || null,
         ...agentTaskUpdater(agent),
-        readMarkers: {
-          create: project.company.agents.map((readAgent) => ({
-            agentId: readAgent.id,
-            status: status as Status,
-          })),
-        },
       },
+      select: { id: true },
+    })
+
+    if (project.company.agents.length) {
+      await tx.taskReadMarker.createMany({
+        data: createTaskReadMarkerRows({
+          taskId: createdTask.id,
+          readAgents: project.company.agents,
+          status: status as Status,
+        }),
+        skipDuplicates: true,
+      })
+    }
+
+    return tx.task.findUniqueOrThrow({
+      where: { id: createdTask.id },
       select: {
         id: true,
         name: true,
@@ -363,6 +374,13 @@ export async function POST(request: NextRequest) {
             blockedTask: { select: { id: true, name: true, status: true, archivedAt: true } },
           },
           orderBy: { createdAt: "asc" },
+        },
+        project: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
         },
         taskUpdatedAt: true,
         taskUpdatedById: true,
