@@ -4,6 +4,7 @@ type DependencyTask = {
   id: string
   name: string
   status: Status
+  archivedAt?: Date | null
 }
 
 type DependencyEdge = {
@@ -21,8 +22,14 @@ export type TaskDependencyPayload = {
 
 export function serializeTaskDependencies<T extends TaskDependencyPayload>(task: T) {
   const { blockedByDependencies, unblocksDependencies, ...rest } = task
-  const dependencies = blockedByDependencies?.map((dependency) => dependency.dependencyTask) ?? []
-  const unblocks = unblocksDependencies?.map((dependency) => dependency.blockedTask) ?? []
+  const dependencies =
+    blockedByDependencies
+      ?.map((dependency) => dependency.dependencyTask)
+      .filter((dependency) => !dependency.archivedAt) ?? []
+  const unblocks =
+    unblocksDependencies
+      ?.map((dependency) => dependency.blockedTask)
+      .filter((dependency) => !dependency.archivedAt) ?? []
 
   return {
     ...rest,
