@@ -38,6 +38,10 @@ const statuses = Object.values(Status)
  *                   summaryUpdatedAt: null
  *                   readBy: []
  *                   blockingReason: null
+ *                   dependencyIds: []
+ *                   dependencies: []
+ *                   unblocks: []
+ *                   isDependencyReady: false
  *                   archivedAt: null
  *                   taskUpdatedAt: "2026-05-11T08:40:00.000Z"
  *                   taskUpdatedById: "550e8400-e29b-41d4-a716-446655440000"
@@ -209,6 +213,10 @@ export async function GET(request: NextRequest) {
  *                 summaryUpdatedAt: "2026-05-11T08:40:00.000Z"
  *                 readBy: []
  *                 blockingReason: null
+ *                 dependencyIds: []
+ *                 dependencies: []
+ *                 unblocks: []
+ *                 isDependencyReady: false
  *                 taskUpdatedAt: "2026-05-11T08:40:00.000Z"
  *                 taskUpdatedById: "550e8400-e29b-41d4-a716-446655440000"
  *                 taskUpdatedByName: "Build Agent"
