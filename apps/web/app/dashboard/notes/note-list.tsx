@@ -23,6 +23,9 @@ type NoteTask = {
   status: string
   note: string
   summaryUpdatedAt: string | null
+  taskUpdatedAt: string
+  taskUpdatedByName: string | null
+  taskUpdatedByType: string
   assigned: {
     id: string
     name: string
@@ -89,13 +92,19 @@ export function NoteList({ companyId, reviewReader, initialNotes }: NoteListProp
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">{formatStatus(task.status)}</Badge>
-                    {task.summaryUpdatedAt ? (
-                      <Badge variant="secondary">{formatDate(task.summaryUpdatedAt)}</Badge>
-                    ) : null}
+                    <Badge variant="secondary">
+                      Summary {formatNullableDate(task.summaryUpdatedAt)}
+                    </Badge>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
+                <SummaryAuditContext
+                  summaryUpdatedAt={task.summaryUpdatedAt}
+                  taskUpdatedAt={task.taskUpdatedAt}
+                  taskUpdatedByName={task.taskUpdatedByName}
+                  taskUpdatedByType={task.taskUpdatedByType}
+                />
                 <ExpandableNote text={task.note} />
                 <div className="flex flex-wrap gap-2">
                   <Button asChild type="button" variant="outline" size="sm">
@@ -146,6 +155,39 @@ export function NoteList({ companyId, reviewReader, initialNotes }: NoteListProp
       )}
     </div>
   )
+}
+
+function SummaryAuditContext({
+  summaryUpdatedAt,
+  taskUpdatedAt,
+  taskUpdatedByName,
+  taskUpdatedByType,
+}: {
+  summaryUpdatedAt: string | null
+  taskUpdatedAt: string
+  taskUpdatedByName: string | null
+  taskUpdatedByType: string
+}) {
+  const actorLabel = taskUpdatedByName ?? fallbackActorLabel(taskUpdatedByType)
+
+  return (
+    <div className="rounded-2xl border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+      <p>
+        Summary updated: {formatNullableDate(summaryUpdatedAt)} · Last task update by {actorLabel} ({taskUpdatedByType || "unknown"}) at {formatDate(taskUpdatedAt)}
+      </p>
+    </div>
+  )
+}
+
+function formatNullableDate(value: string | null) {
+  return value ? formatDate(value) : "unknown"
+}
+
+function fallbackActorLabel(actorType: string) {
+  if (actorType === "agent") return "Unknown agent"
+  if (actorType === "user") return "Unknown user"
+  if (actorType === "system") return "System"
+  return "Unknown actor"
 }
 
 function ExpandableNote({ text }: { text: string }) {

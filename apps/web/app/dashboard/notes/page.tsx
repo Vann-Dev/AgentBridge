@@ -44,6 +44,9 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
       status: true,
       note: true,
       summaryUpdatedAt: true,
+      taskUpdatedAt: true,
+      taskUpdatedByName: true,
+      taskUpdatedByType: true,
       assigned: {
         select: {
           id: true,
@@ -98,6 +101,9 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
               status: task.status,
               note: task.note ?? "",
               summaryUpdatedAt: task.summaryUpdatedAt?.toISOString() ?? null,
+              taskUpdatedAt: task.taskUpdatedAt.toISOString(),
+              taskUpdatedByName: task.taskUpdatedByName,
+              taskUpdatedByType: task.taskUpdatedByType,
               assigned: task.assigned,
               project: task.project,
             }))}
