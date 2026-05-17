@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 
 import { Status } from "@/generated/prisma/enums"
 import { createAuditLog, formatChangedFields } from "@/lib/api/audit-log"
+import { findReviewReader } from "@/lib/api/review-reader"
 import { invalidateProjectAndCompanyCache } from "@/lib/api/cache"
 import {
   projectAgentSelect,
@@ -246,6 +247,65 @@ export async function updateTaskStatusAction(
   status: Status
 ): Promise<ActionResult<{ task: ProjectTaskDetail }>> {
   return updateTaskAction(taskId, { status } as TaskMutationPayload)
+}
+
+export async function markProjectTaskSummaryReadAction(
+  taskId: string
+): Promise<ActionResult<{ taskId: string; readBy: string }>> {
+  const session = await getSession()
+
+  if (!session) {
+    return { ok: false, error: "Unauthorized" }
+  }
+
+  const task = await prisma.task.findFirst({
+    where: {
+      id: taskId,
+      status: Status.done,
+      archivedAt: null,
+      note: { not: null },
+      project: { company: { userId: session.userId } },
+    },
+    select: {
+      id: true,
+      projectId: true,
+      project: { select: { companyId: true } },
+    },
+  })
+
+  if (!task) {
+    return { ok: false, error: "Done task note not found." }
+  }
+
+  const reviewReader = await findReviewReader(task.project.companyId)
+
+  if (!reviewReader) {
+    return { ok: false, error: "Review reader agent not found." }
+  }
+
+  const readAt = new Date()
+
+  await prisma.taskReadMarker.upsert({
+    where: {
+      taskId_agentId_status: {
+        taskId: task.id,
+        agentId: reviewReader.id,
+        status: Status.done,
+      },
+    },
+    create: {
+      taskId: task.id,
+      agentId: reviewReader.id,
+      status: Status.done,
+      readAt,
+    },
+    update: { readAt },
+  })
+
+  await invalidateAndRevalidate(task.project.companyId, task.projectId)
+  revalidatePath("/dashboard/notes")
+
+  return { ok: true, taskId: task.id, readBy: reviewReader.AgentId }
 }
 
 export async function updateTaskAction(

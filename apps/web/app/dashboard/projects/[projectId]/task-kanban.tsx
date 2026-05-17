@@ -50,6 +50,7 @@ import {
   deleteTaskAction,
   getProjectDetailAction,
   getTaskDetailAction,
+  markProjectTaskSummaryReadAction,
   updateTaskAction,
   updateTaskStatusAction,
 } from "./actions"
@@ -235,6 +236,17 @@ export function TaskKanban({
       queryClient.invalidateQueries({ queryKey: ["agents", companyId] })
     },
   })
+  const markSummaryReadMutation = useMutation({
+    mutationFn: (taskId: string) =>
+      unwrapActionResult(markProjectTaskSummaryReadAction(taskId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] })
+      queryClient.invalidateQueries({
+        queryKey: ["dashboard-summary", companyId],
+      })
+    },
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (taskId: string) =>
       unwrapActionResult(deleteTaskAction(taskId)),
@@ -430,6 +442,15 @@ export function TaskKanban({
                                 label="Done summary"
                                 text={task.notePreview}
                                 tone={task.isUnreadDoneSummary ? "unread" : "default"}
+                                summaryUpdatedAt={task.summaryUpdatedAt}
+                                isUnread={task.isUnreadDoneSummary}
+                                isMarkingRead={
+                                  markSummaryReadMutation.isPending &&
+                                  markSummaryReadMutation.variables === task.id
+                                }
+                                onMarkRead={() =>
+                                  markSummaryReadMutation.mutate(task.id)
+                                }
                               />
                             ) : task.summaryUpdatedAt ? (
                               <p className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
@@ -772,16 +793,25 @@ function LatencyDiagnostics({
 }
 
 function TaskCardPreview({
+  isMarkingRead = false,
+  isUnread = false,
   label,
+  onMarkRead,
+  summaryUpdatedAt,
   text,
   tone = "default",
 }: {
+  isMarkingRead?: boolean
+  isUnread?: boolean
   label: string
+  onMarkRead?: () => void
+  summaryUpdatedAt?: string | Date | null
   text: string
   tone?: "default" | "unread"
 }) {
   const [expanded, setExpanded] = useState(false)
-  const compact = text.length > 120
+  const summaryDate = summaryUpdatedAt ? new Date(summaryUpdatedAt) : null
+  const hasSummaryDate = summaryDate && !Number.isNaN(summaryDate.getTime())
 
   return (
     <div
@@ -804,12 +834,17 @@ function TaskCardPreview({
       >
         <span className="text-xs tracking-[0.16em] uppercase">{label}</span>
         <span className="flex shrink-0 items-center gap-1 text-xs">
-          {compact ? (expanded ? "Less" : "More") : "View"}
+          {expanded ? "Less" : "More"}
           <ChevronDown
             className={cn("size-4 transition-transform", expanded ? "rotate-180" : "")}
           />
         </span>
       </button>
+      {hasSummaryDate ? (
+        <p className="mt-1 text-xs opacity-80">
+          Updated {formatRelativeTime(summaryDate)}
+        </p>
+      ) : null}
       <p
         className={cn(
           "mt-2 whitespace-pre-wrap break-words",
@@ -818,6 +853,22 @@ function TaskCardPreview({
       >
         {text}
       </p>
+      {isUnread && onMarkRead ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-3 h-8 bg-background/80 text-xs"
+          disabled={isMarkingRead}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            onMarkRead()
+          }}
+        >
+          {isMarkingRead ? "Marking..." : "Mark reviewed by main"}
+        </Button>
+      ) : null}
     </div>
   )
 }
