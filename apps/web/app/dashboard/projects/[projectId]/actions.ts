@@ -17,6 +17,7 @@ import {
 import { getTaskFreshnessUpdate } from "@/lib/api/task-freshness"
 import { userTaskUpdater } from "@/lib/api/task-updater"
 import { getSession } from "@/lib/auth"
+import { getDoneSummaryReviewReadMarkerWhere } from "@/lib/dashboard/note-read-state"
 import { prisma } from "@/lib/prisma"
 
 import type { ProjectDetailData, ProjectTaskDetail } from "./types"
@@ -641,6 +642,11 @@ async function loadProjectDetail(projectId: string, userId: string) {
 }
 
 export async function loadProjectTaskCards(projectId: string) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { companyId: true },
+  })
+  const reviewReader = project ? await findReviewReader(project.companyId) : null
   const tasks = await prisma.task.findMany({
     where: { projectId, archivedAt: null },
     orderBy: { name: "asc" },
@@ -656,7 +662,7 @@ export async function loadProjectTaskCards(projectId: string) {
       status: true,
       blockingReason: true,
       readMarkers: {
-        where: { status: Status.done, agent: { AgentId: "main" } },
+        where: getDoneSummaryReviewReadMarkerWhere(reviewReader),
         select: { readAt: true },
       },
       assigned: { select: { id: true, name: true, position: true } },

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { isDoneSummaryUnread } from "./note-read-state"
+import { getDoneSummaryReviewReadMarkerWhere, isDoneSummaryUnread } from "./note-read-state"
 
 describe("dashboard done summary read state", () => {
   it("treats noted done tasks with unknown summary freshness as unread", () => {
@@ -31,5 +31,11 @@ describe("dashboard done summary read state", () => {
       }),
       false
     )
+  })
+  it("scopes project-card done summary reads to the resolved review reader", () => {
+    assert.deepEqual(getDoneSummaryReviewReadMarkerWhere({ id: "agent-natsuki" }), {
+      status: "done",
+      agentId: "agent-natsuki",
+    })
   })
 })
