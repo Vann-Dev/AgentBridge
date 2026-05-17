@@ -240,11 +240,20 @@ export function createOpenApiDocument() {
               summaryUpdatedAt: {
                 type: ["string", "null"],
                 format: "date-time",
-                description: "When note/summary was last explicitly changed.",
+                description:
+                  "Stored freshness timestamp for note/summary content. It is set when a non-empty note changes, cleared when the note is cleared, and remains null/unchanged otherwise; it does not fall back to taskUpdatedAt.",
               },
-              taskUpdatedAt: { type: "string", format: "date-time" },
+              taskUpdatedAt: {
+                type: "string",
+                format: "date-time",
+                description:
+                  "Latest task mutation timestamp, including note/summary changes. Use with taskUpdatedBy* to audit who changed the task while summaryUpdatedAt tracks summary freshness.",
+              },
               taskUpdatedById: { type: ["string", "null"], format: "uuid" },
-              taskUpdatedByName: { type: ["string", "null"] },
+              taskUpdatedByName: {
+                type: ["string", "null"],
+                description: "Display name for the latest task updater when available.",
+              },
               taskUpdatedByType: { type: "string" },
               blockingReason: { type: ["string", "null"] },
               archivedAt: { type: ["string", "null"], format: "date-time" },
